@@ -200,19 +200,62 @@ button:disabled {
 }
 
 .tasks li {
+  --complete-progress: 0%;
   display: grid;
-  grid-template-columns: 32px 1fr;
+  grid-template-columns: 32px 1fr 38px;
   gap: 10px;
-  align-items: start;
+  align-items: center;
+  position: relative;
   min-height: 52px;
   padding: 10px;
   background: #ffffff;
   overflow-wrap: anywhere;
   line-height: 1.35;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.tasks li::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: var(--complete-progress);
+  background: #b8f08b;
+  transition: width 120ms linear;
+}
+
+.tasks li.holding::before {
+  --complete-progress: 100%;
+  transition-duration: 850ms;
+}
+
+.tasks li.completing {
+  opacity: 0.65;
+}
+
+.tasks li > * {
+  position: relative;
+  z-index: 1;
 }
 
 .tasks li.due-today {
   background: #ffd4e8;
+}
+
+.complete-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.complete-button:focus-visible {
+  outline: 3px solid #85c7ff;
+  outline-offset: 3px;
 }
 
 .sprite {
@@ -262,5 +305,16 @@ button:disabled {
 
   .add-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (pointer: coarse) {
+  .tasks li {
+    grid-template-columns: 32px 1fr;
+    cursor: pointer;
+  }
+
+  .complete-button {
+    display: none;
   }
 }

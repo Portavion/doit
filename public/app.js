@@ -4,6 +4,9 @@ const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const statusText = document.querySelector("#status");
 const list = document.querySelector("#tasks");
+const coarsePointer = window.matchMedia("(pointer: coarse)");
+const completeHoldMs = 850;
+let completingTaskId = null;
 
 function showStatus(message) {
   statusText.textContent = message;
@@ -15,6 +18,10 @@ function todayKey() {
 
 function dueDateKey(task) {
   return typeof task?.due === "string" ? task.due.slice(0, 8) : "";
+}
+
+function taskId(task) {
+  return typeof task?.id === "number" ? task.id : null;
 }
 
 function renderTasks(tasks) {
@@ -33,11 +40,23 @@ function renderTasks(tasks) {
     const item = document.createElement("li");
     const sprite = document.createElement("span");
     const text = document.createElement("span");
+    const complete = document.createElement("button");
+    const id = taskId(task);
 
     sprite.className = "sprite";
+    complete.className = "complete-button";
+    complete.type = "button";
+    complete.textContent = "✓";
     item.classList.toggle("due-today", dueDateKey(task) === currentDay);
+    item.classList.toggle("can-complete", id !== null);
+    item.dataset.taskId = id === null ? "" : id;
+    if (id !== null) {
+      complete.setAttribute("aria-label", `Complete task: ${description}`);
+    } else {
+      complete.disabled = true;
+    }
     text.textContent = description;
-    item.append(sprite, text);
+    item.append(sprite, text, complete);
     list.append(item);
   }
 }
@@ -48,6 +67,28 @@ async function parseResponse(response) {
     throw new Error(body.error || `request failed with ${response.status}`);
   }
   return body;
+}
+
+async function completeTask(item) {
+  const id = Number(item.dataset.taskId);
+  if (!Number.isInteger(id) || completingTaskId !== null) {
+    return;
+  }
+
+  completingTaskId = id;
+  item.classList.add("completing");
+  showStatus("Completing...");
+  try {
+    const response = await fetch(`/api/tasks/${id}/complete`, {
+      method: "POST",
+    });
+    renderTasks(await parseResponse(response));
+  } catch (error) {
+    showStatus(error.message);
+    item.classList.remove("completing");
+  } finally {
+    completingTaskId = null;
+  }
 }
 
 async function loadTasks() {
@@ -89,6 +130,75 @@ async function addTask(event) {
   }
 }
 
+function handleTaskClick(event) {
+  const complete = event.target.closest(".complete-button");
+  if (!complete || coarsePointer.matches) {
+    return;
+  }
+
+  const item = complete.closest(".tasks li.can-complete");
+  completeTask(item);
+}
+
+function handleTaskPointerdown(event) {
+  const item = event.target.closest(".tasks li.can-complete");
+  if (
+    !item ||
+    event.target.closest(".complete-button") ||
+    !coarsePointer.matches ||
+    event.pointerType === "mouse"
+  ) {
+    return;
+  }
+
+  const startX = event.clientX;
+  const startY = event.clientY;
+  let canceled = false;
+  let timer = null;
+
+  function cancelHold() {
+    canceled = true;
+    clearTimeout(timer);
+    item.classList.remove("holding");
+    cleanup();
+  }
+
+  function handlePointerMove(moveEvent) {
+    const movedX = Math.abs(moveEvent.clientX - startX);
+    const movedY = Math.abs(moveEvent.clientY - startY);
+    if (movedX > 12 || movedY > 12) {
+      cancelHold();
+    }
+  }
+
+  function cleanup() {
+    if (item.hasPointerCapture(event.pointerId)) {
+      item.releasePointerCapture(event.pointerId);
+    }
+    item.removeEventListener("pointermove", handlePointerMove);
+    item.removeEventListener("pointerup", cancelHold);
+    item.removeEventListener("pointercancel", cancelHold);
+    item.removeEventListener("lostpointercapture", cancelHold);
+  }
+
+  item.setPointerCapture(event.pointerId);
+  item.classList.add("holding");
+  item.addEventListener("pointermove", handlePointerMove);
+  item.addEventListener("pointerup", cancelHold, { once: true });
+  item.addEventListener("pointercancel", cancelHold, { once: true });
+  item.addEventListener("lostpointercapture", cancelHold, { once: true });
+
+  timer = setTimeout(() => {
+    cleanup();
+    item.classList.remove("holding");
+    if (!canceled) {
+      completeTask(item);
+    }
+  }, completeHoldMs);
+}
+
 form.addEventListener("submit", addTask);
 refresh.addEventListener("click", loadTasks);
+list.addEventListener("click", handleTaskClick);
+list.addEventListener("pointerdown", handleTaskPointerdown);
 loadTasks();

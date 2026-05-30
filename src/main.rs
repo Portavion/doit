@@ -10,10 +10,10 @@ use std::{
 
 use anyhow::{Context, Result};
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use fs2::FileExt;
@@ -110,6 +110,7 @@ pub fn app(task: TaskConfig) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/api/tasks", get(tasks).post(add_task))
+        .route("/api/tasks/:id/complete", post(complete_task))
         .nest_service(
             "/",
             ServeDir::new("public").append_index_html_on_directories(true),
@@ -186,6 +187,22 @@ async fn add_task(
         )
         .await?;
         ensure_success("task add", output.status, &output.stderr)?;
+
+        sync_tasks(&state.task).await?;
+
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
+}
+
+/// Marks a pending task complete, syncs Taskwarrior, and returns the updated list
+async fn complete_task(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    with_task_lock(&state.task, || async {
+        let output = run_task(&state.task, [id.to_string(), "done".to_string()]).await?;
+        ensure_success("task done", output.status, &output.stderr)?;
 
         sync_tasks(&state.task).await?;
 
