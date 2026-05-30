@@ -9,6 +9,14 @@ function showStatus(message) {
   statusText.textContent = message;
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10).replaceAll("-", "");
+}
+
+function dueDateKey(task) {
+  return typeof task?.due === "string" ? task.due.slice(0, 8) : "";
+}
+
 function renderTasks(tasks) {
   list.textContent = "";
 
@@ -18,13 +26,17 @@ function renderTasks(tasks) {
   }
 
   showStatus(`${tasks.length} task${tasks.length === 1 ? "" : "s"} ready`);
+  const currentDay = todayKey();
   for (const task of tasks) {
+    const description =
+      typeof task === "string" ? task : task.description || task.line || "";
     const item = document.createElement("li");
     const sprite = document.createElement("span");
     const text = document.createElement("span");
 
     sprite.className = "sprite";
-    text.textContent = task.line;
+    item.classList.toggle("due-today", dueDateKey(task) === currentDay);
+    text.textContent = description;
     item.append(sprite, text);
     list.append(item);
   }
