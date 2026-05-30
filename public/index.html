@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Doit</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="plane" aria-hidden="true">
+          <span></span>
+        </div>
+        <div>
+          <p class="eyebrow">TaskChampion deck</p>
+          <h1>Doit</h1>
+        </div>
+        <div class="champ" aria-hidden="true">
+          <span class="head"></span>
+          <span class="body"></span>
+          <span class="shoe left"></span>
+          <span class="shoe right"></span>
+        </div>
+      </header>
+
+      <form id="task-form" class="add-form">
+        <label for="description">New inbox task</label>
+        <div class="add-row">
+          <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Add a tiny mission">
+          <button id="submit" type="submit">Add</button>
+        </div>
+      </form>
+
+      <section class="toolbar" aria-live="polite">
+        <button id="refresh" type="button">Refresh</button>
+        <p id="status">Loading tasks...</p>
+      </section>
+
+      <ul id="tasks" class="tasks"></ul>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
