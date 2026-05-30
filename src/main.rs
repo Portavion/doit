@@ -157,9 +157,13 @@ async fn health() -> &'static str {
     "OK"
 }
 
-/// Returns tasks from `task next` in Taskwarrior priority order
+/// Syncs Taskwarrior and returns pending tasks in priority order
 async fn tasks(State(state): State<AppState>) -> Result<Json<Vec<TaskItem>>, AppError> {
-    Ok(Json(list_tasks(&state.task).await?))
+    with_task_lock(&state.task, || async {
+        sync_tasks(&state.task).await?;
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
 }
 
 /// Adds an Inbox task due tomorrow, syncs Taskwarrior, and returns the updated list
@@ -183,14 +187,20 @@ async fn add_task(
         .await?;
         ensure_success("task add", output.status, &output.stderr)?;
 
-        if state.task.sync {
-            let output = run_task(&state.task, ["sync"]).await?;
-            ensure_success("task sync", output.status, &output.stderr)?;
-        }
+        sync_tasks(&state.task).await?;
 
         Ok(Json(list_tasks(&state.task).await?))
     })
     .await
+}
+
+async fn sync_tasks(config: &TaskConfig) -> Result<(), AppError> {
+    if !config.sync {
+        return Ok(());
+    }
+
+    let output = run_task(config, ["sync"]).await?;
+    ensure_success("task sync", output.status, &output.stderr)
 }
 
 async fn list_tasks(config: &TaskConfig) -> Result<Vec<TaskItem>, AppError> {
