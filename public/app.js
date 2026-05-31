@@ -98,9 +98,11 @@ function renderTasks(tasks) {
       typeof task === "string" ? task : task.description || task.line || "";
     const item = document.createElement("li");
     const sprite = document.createElement("span");
-    const text = document.createElement("span");
+    const content = document.createElement("span");
+    const title = document.createElement("span");
     const complete = document.createElement("button");
     const id = taskId(task);
+    const uri = typeof task?.uri === "string" ? task.uri.trim() : "";
 
     const dueDay = dueDateKey(task);
     sprite.className = spriteClass(
@@ -124,8 +126,20 @@ function renderTasks(tasks) {
     } else {
       complete.disabled = true;
     }
-    text.textContent = description;
-    item.append(sprite, text, complete);
+    content.className = "task-content";
+    title.className = "task-title";
+    title.textContent = description;
+    content.append(title);
+    if (uri !== "") {
+      const link = document.createElement("a");
+      link.className = "task-uri";
+      link.href = uri;
+      link.textContent = uri;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      content.append(link);
+    }
+    item.append(sprite, content, complete);
     list.append(item);
   }
 }
@@ -214,6 +228,7 @@ function handleTaskPointerdown(event) {
   if (
     !item ||
     event.target.closest(".complete-button") ||
+    event.target.closest("a") ||
     !coarsePointer.matches ||
     event.pointerType === "mouse"
   ) {

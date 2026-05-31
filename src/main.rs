@@ -51,6 +51,7 @@ struct TaskItem {
     id: Option<u64>,
     project: Option<String>,
     due: Option<String>,
+    uri: Option<String>,
     urg: Option<f64>,
 }
 
@@ -60,6 +61,7 @@ struct TaskExportItem {
     id: Option<u64>,
     project: Option<String>,
     due: Option<String>,
+    uri: Option<String>,
     urgency: Option<f64>,
 }
 
@@ -236,6 +238,7 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
             id: task.id,
             project: task.project,
             due: task.due,
+            uri: task.uri,
             urg: task.urgency,
         })
         .collect();
@@ -439,7 +442,7 @@ mod tests {
     #[test]
     fn task_items_from_export_sorts_by_urgency_and_uses_description() {
         let stdout = r#"[
-{"id":1,"description":"Alpha task","project":"Inbox","due":"20260531T000000Z","urgency":9.5},
+{"id":1,"description":"Alpha task","project":"Inbox","due":"20260531T000000Z","uri":"https://example.com/alpha","urgency":9.5},
 {"id":2,"description":"Beta task","project":"Work","due":"20260530T000000Z","urgency":10.1}
 ]"#;
 
@@ -450,5 +453,6 @@ mod tests {
         assert_eq!(items[0].id, Some(2));
         assert_eq!(items[0].project.as_deref(), Some("Work"));
         assert_eq!(items[1].description, "Alpha task");
+        assert_eq!(items[1].uri.as_deref(), Some("https://example.com/alpha"));
     }
 }

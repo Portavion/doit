@@ -257,6 +257,31 @@ button:disabled {
   background: #e85f9f;
 }
 
+.task-content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.task-title {
+  min-width: 0;
+}
+
+.task-uri {
+  justify-self: start;
+  margin-left: 14px;
+  color: #77717a;
+  font-size: 11px;
+  line-height: 1.2;
+  text-decoration-color: #b5adb8;
+  overflow-wrap: anywhere;
+}
+
+.task-uri:focus-visible {
+  outline: 3px solid #85c7ff;
+  outline-offset: 2px;
+}
+
 .complete-button {
   width: 34px;
   height: 34px;
