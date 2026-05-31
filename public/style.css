@@ -307,34 +307,359 @@ button:disabled {
 }
 
 .sprite {
+  --skin: #b8f08b;
+  --eye-top: 7px;
+  --mouth-left: 6px;
+  --mouth-bottom: 4px;
+  --mouth-width: 12px;
   position: relative;
   width: 28px;
   height: 28px;
-  background: #b8f08b;
+  background: var(--skin);
   border: 4px solid #31233a;
   image-rendering: pixelated;
 }
 
 .sprite::before,
-.sprite::after {
+.sprite::after,
+.sprite i,
+.sprite b,
+.sprite em {
   content: "";
   position: absolute;
+  display: block;
   background: #31233a;
+  font-style: normal;
 }
 
 .sprite::before {
   left: 4px;
-  top: 6px;
+  top: var(--eye-top);
   width: 4px;
   height: 4px;
   box-shadow: 12px 0 0 #31233a;
 }
 
 .sprite::after {
-  left: 6px;
-  bottom: 4px;
-  width: 12px;
+  left: var(--mouth-left);
+  bottom: var(--mouth-bottom);
+  width: var(--mouth-width);
   height: 4px;
+}
+
+.sprite.angry-1 {
+  --skin: #ff8f70;
+  --mouth-width: 14px;
+  transform: rotate(-2deg);
+}
+
+.sprite.angry-1::before {
+  left: 3px;
+  top: 5px;
+  width: 8px;
+  height: 4px;
+  transform: rotate(24deg);
+  box-shadow: 11px -5px 0 #31233a;
+}
+
+.sprite.angry-1::after {
+  transform: rotate(-8deg);
+}
+
+.sprite.angry-1 i {
+  left: 11px;
+  top: -12px;
+  width: 4px;
+  height: 8px;
+  background: #ff3f7f;
+  box-shadow: -8px 5px 0 #ff3f7f, 8px 5px 0 #ff3f7f;
+}
+
+.sprite.angry-2 {
+  --skin: #ff5f9f;
+  --mouth-left: 6px;
+  --mouth-bottom: 4px;
+  --mouth-width: 12px;
+}
+
+.sprite.angry-2::before {
+  left: 2px;
+  top: 4px;
+  width: 9px;
+  height: 4px;
+  transform: rotate(22deg);
+  box-shadow: 11px -5px 0 #31233a;
+}
+
+.sprite.angry-2::after {
+  height: 4px;
+  background: #31233a;
+  transform: rotate(10deg);
+}
+
+.sprite.angry-2 i {
+  left: 6px;
+  bottom: 8px;
+  width: 12px;
+  height: 3px;
+  background: #ffffff;
+}
+
+.sprite.angry-3 {
+  --skin: #ff3f7f;
+  --mouth-left: 5px;
+  --mouth-bottom: 5px;
+  --mouth-width: 14px;
+  transform: rotate(-2deg);
+}
+
+.sprite.angry-3::before {
+  left: 3px;
+  top: 5px;
+  width: 5px;
+  height: 4px;
+  transform: rotate(-18deg);
+  box-shadow: 13px 0 0 #31233a;
+}
+
+.sprite.angry-3::after {
+  height: 4px;
+  transform: rotate(-12deg);
+}
+
+.sprite.angry-3 i {
+  left: 2px;
+  top: -7px;
+  width: 7px;
+  height: 4px;
+  background: #ffe26f;
+  box-shadow: 17px 0 0 #ffe26f;
+}
+
+.sprite.angry-4 {
+  --skin: #ff8f70;
+  --mouth-left: 5px;
+  --mouth-bottom: 4px;
+  --mouth-width: 14px;
+  transform: translateY(1px) rotate(2deg);
+}
+
+.sprite.angry-4::before {
+  left: 2px;
+  top: 4px;
+  width: 8px;
+  height: 4px;
+  transform: rotate(16deg);
+  box-shadow: 13px -2px 0 #31233a;
+}
+
+.sprite.angry-4::after {
+  height: 4px;
+  transform: rotate(12deg);
+}
+
+.sprite.angry-4 i {
+  left: -5px;
+  bottom: -8px;
+  width: 10px;
+  height: 5px;
+  background: #ff3f7f;
+  box-shadow: 22px 0 0 #ff3f7f;
+}
+
+.sprite.angry-5 {
+  --skin: #ff7a90;
+  --mouth-left: 5px;
+  --mouth-bottom: 4px;
+  --mouth-width: 14px;
+  transform: rotate(3deg);
+}
+
+.sprite.angry-5::before {
+  left: 2px;
+  top: 5px;
+  width: 8px;
+  height: 4px;
+  transform: rotate(-22deg);
+  box-shadow: 12px 5px 0 #31233a;
+}
+
+.sprite.angry-5::after {
+  height: 4px;
+  transform: rotate(-15deg);
+}
+
+.sprite.angry-5 i {
+  right: -8px;
+  top: 8px;
+  width: 6px;
+  height: 10px;
+  background: #ff3f7f;
+}
+
+.sprite.today-1 {
+  --skin: #b8f08b;
+}
+
+.sprite.today-2 {
+  --skin: #b8f08b;
+  transform: translateY(-3px);
+}
+
+.sprite.today-2::before {
+  top: 5px;
+  height: 5px;
+}
+
+.sprite.today-2 i,
+.sprite.today-4 i {
+  left: -5px;
+  bottom: -8px;
+  width: 10px;
+  height: 5px;
+  background: #ff7a90;
+  box-shadow: 22px 0 0 #ff7a90;
+}
+
+.sprite.today-3 {
+  --skin: #9ed6d2;
+}
+
+.sprite.today-3::before {
+  left: 4px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
+  box-shadow: 11px 0 0 #31233a;
+}
+
+.sprite.today-3 i {
+  left: 9px;
+  top: -8px;
+  width: 7px;
+  height: 7px;
+  background: #ff8fc5;
+}
+
+.sprite.today-4 {
+  --skin: #b8f08b;
+  transform: translateY(-2px);
+}
+
+.sprite.today-5 {
+  --skin: #ffe26f;
+}
+
+.sprite.today-5::after {
+  left: 7px;
+  bottom: 3px;
+  width: 10px;
+  height: 6px;
+  background: #31233a;
+}
+
+.sprite.today-5 i {
+  right: -8px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  background: #85c7ff;
+  box-shadow: 0 7px 0 #85c7ff;
+}
+
+.sprite.sleep-1::before,
+.sprite.sleep-2::before,
+.sprite.sleep-3::before,
+.sprite.sleep-4::before,
+.sprite.sleep-5::before {
+  left: 4px;
+  top: 8px;
+  width: 6px;
+  height: 3px;
+  box-shadow: 11px 0 0 #31233a;
+}
+
+.sprite.sleep-1::after,
+.sprite.sleep-2::after,
+.sprite.sleep-3::after,
+.sprite.sleep-4::after,
+.sprite.sleep-5::after {
+  left: 9px;
+  width: 8px;
+}
+
+.sprite.sleep-1 i,
+.sprite.sleep-2 i,
+.sprite.sleep-3 i,
+.sprite.sleep-4 i,
+.sprite.sleep-5 i {
+  right: -12px;
+  top: -12px;
+  width: 4px;
+  height: 4px;
+  background: #85c7ff;
+  box-shadow: 5px -5px 0 #85c7ff, 10px -10px 0 #85c7ff;
+}
+
+.sprite.sleep-2 {
+  --skin: #ffe26f;
+  transform: rotate(-4deg);
+}
+
+.sprite.sleep-2 b {
+  left: -5px;
+  bottom: -7px;
+  width: 34px;
+  height: 4px;
+}
+
+.sprite.sleep-3 {
+  --skin: #9ed6d2;
+}
+
+.sprite.sleep-3 b {
+  left: 2px;
+  top: -7px;
+  width: 20px;
+  height: 5px;
+  background: #ff8fc5;
+  border: 3px solid #31233a;
+}
+
+.sprite.sleep-4 {
+  --skin: #b8f08b;
+}
+
+.sprite.sleep-4 b {
+  left: -4px;
+  bottom: -6px;
+  width: 32px;
+  height: 10px;
+  background: #85c7ff;
+  border: 3px solid #31233a;
+}
+
+.sprite.sleep-4 em {
+  left: 2px;
+  top: -7px;
+  width: 20px;
+  height: 5px;
+  background: #ff8fc5;
+  border: 3px solid #31233a;
+}
+
+.sprite.sleep-5 {
+  --skin: #85c7ff;
+  transform: translateY(2px);
+}
+
+.sprite.sleep-5 em {
+  left: -7px;
+  top: 11px;
+  width: 5px;
+  height: 5px;
+  background: #ffffff;
+  border: 3px solid #31233a;
 }
 
 @media (max-width: 360px) {

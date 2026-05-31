@@ -7,21 +7,79 @@ const list = document.querySelector("#tasks");
 const coarsePointer = window.matchMedia("(pointer: coarse)");
 const completeHoldMs = 850;
 let completingTaskId = null;
+const spriteVariants = {
+  overdue: ["angry-1", "angry-2", "angry-3", "angry-4", "angry-5"],
+  today: ["today-1", "today-2", "today-3", "today-4", "today-5"],
+  tomorrow: ["sleep-1", "sleep-2", "sleep-3", "sleep-4", "sleep-5"],
+  default: ["today-1", "today-2", "today-3", "today-4", "today-5"],
+};
 
 function showStatus(message) {
   statusText.textContent = message;
 }
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  return localDateKey(new Date());
+}
+
+function tomorrowKey() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return localDateKey(tomorrow);
+}
+
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
 }
 
 function dueDateKey(task) {
-  return typeof task?.due === "string" ? task.due.slice(0, 8) : "";
+  if (typeof task?.due !== "string") {
+    return "";
+  }
+
+  const match = task.due.match(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+  );
+  if (!match) {
+    return task.due.slice(0, 8);
+  }
+
+  const [, year, month, day, hour, minute, second] = match;
+  return localDateKey(
+    new Date(Date.UTC(year, month - 1, day, hour, minute, second)),
+  );
 }
 
 function taskId(task) {
   return typeof task?.id === "number" ? task.id : null;
+}
+
+function variantIndex(key, count) {
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) % 9973;
+  }
+  return hash % count;
+}
+
+function spriteClass(task, dueDay, currentDay, nextDay, description) {
+  let state = "default";
+  if (dueDay !== "" && dueDay < currentDay) {
+    state = "overdue";
+  }
+  if (dueDay === currentDay) {
+    state = "today";
+  }
+  if (dueDay === nextDay) {
+    state = "tomorrow";
+  }
+
+  const variants = spriteVariants[state];
+  const key = `${taskId(task) ?? description}-${dueDay}-${state}`;
+  return `sprite ${variants[variantIndex(key, variants.length)]}`;
 }
 
 function renderTasks(tasks) {
@@ -34,6 +92,7 @@ function renderTasks(tasks) {
 
   showStatus(`${tasks.length} task${tasks.length === 1 ? "" : "s"} ready`);
   const currentDay = todayKey();
+  const nextDay = tomorrowKey();
   for (const task of tasks) {
     const description =
       typeof task === "string" ? task : task.description || task.line || "";
@@ -43,11 +102,19 @@ function renderTasks(tasks) {
     const complete = document.createElement("button");
     const id = taskId(task);
 
-    sprite.className = "sprite";
+    const dueDay = dueDateKey(task);
+    sprite.className = spriteClass(
+      task,
+      dueDay,
+      currentDay,
+      nextDay,
+      description,
+    );
+    sprite.append(document.createElement("i"), document.createElement("b"));
+    sprite.append(document.createElement("em"));
     complete.className = "complete-button";
     complete.type = "button";
     complete.textContent = "✓";
-    const dueDay = dueDateKey(task);
     item.classList.toggle("overdue", dueDay !== "" && dueDay < currentDay);
     item.classList.toggle("due-today", dueDay === currentDay);
     item.classList.toggle("can-complete", id !== null);
