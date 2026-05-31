@@ -78,7 +78,7 @@ function spriteClass(task, dueDay, currentDay, nextDay, description) {
   }
 
   const variants = spriteVariants[state];
-  const key = `${taskId(task) ?? description}-${dueDay}-${state}`;
+  const key = `${taskId(task) ?? ""}-${description}-${dueDay}-${state}`;
   return `sprite ${variants[variantIndex(key, variants.length)]}`;
 }
 
