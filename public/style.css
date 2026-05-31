@@ -213,8 +213,6 @@ button:disabled {
   line-height: 1.35;
   overflow: hidden;
   touch-action: pan-y;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 .tasks li::before {
@@ -317,7 +315,9 @@ button:disabled {
   .tasks li {
     grid-template-columns: 32px 1fr;
     cursor: pointer;
+    user-select: none;
     -webkit-touch-callout: none;
+    -webkit-user-select: none;
   }
 
   .complete-button {
