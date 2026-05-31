@@ -11,7 +11,7 @@ const spriteVariants = {
   overdue: ["angry-1", "angry-2", "angry-3", "angry-4", "angry-5"],
   today: ["today-1", "today-2", "today-3", "today-4", "today-5"],
   tomorrow: ["sleep-1", "sleep-2", "sleep-3", "sleep-4", "sleep-5"],
-  default: ["today-1", "today-2", "today-3", "today-4", "today-5"],
+  default: ["sleep-1", "sleep-2", "sleep-3", "sleep-4", "sleep-5"],
 };
 
 function showStatus(message) {
