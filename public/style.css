@@ -213,6 +213,11 @@ button:disabled {
   line-height: 1.35;
   overflow: hidden;
   touch-action: pan-y;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease,
+    opacity 180ms ease;
 }
 
 .tasks li::before {
@@ -259,6 +264,33 @@ button:disabled {
 .complete-button:focus-visible {
   outline: 3px solid #85c7ff;
   outline-offset: 3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tasks li.can-complete:hover {
+    transform: translate(-2px, -5px) rotate(-1deg);
+    box-shadow: 9px 11px 0 #31233a;
+  }
+
+  .complete-button:hover {
+    animation: checkbox-wiggle 420ms ease;
+    background: #b8f08b;
+  }
+}
+
+@keyframes checkbox-wiggle {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+
+  25% {
+    transform: rotate(-10deg) scale(1.08);
+  }
+
+  55% {
+    transform: rotate(8deg) scale(1.12);
+  }
 }
 
 .sprite {
@@ -318,6 +350,12 @@ button:disabled {
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
+  }
+
+  .tasks li.holding,
+  .tasks li.completing {
+    transform: translate(-2px, -5px) rotate(-1deg);
+    box-shadow: 9px 11px 0 #31233a;
   }
 
   .complete-button {
