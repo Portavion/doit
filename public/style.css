@@ -244,6 +244,10 @@ button:disabled {
   background: #ffd4e8;
 }
 
+.tasks li.overdue {
+  background: #e85f9f;
+}
+
 .complete-button {
   width: 34px;
   height: 34px;

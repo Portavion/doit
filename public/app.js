@@ -47,7 +47,9 @@ function renderTasks(tasks) {
     complete.className = "complete-button";
     complete.type = "button";
     complete.textContent = "✓";
-    item.classList.toggle("due-today", dueDateKey(task) === currentDay);
+    const dueDay = dueDateKey(task);
+    item.classList.toggle("overdue", dueDay !== "" && dueDay < currentDay);
+    item.classList.toggle("due-today", dueDay === currentDay);
     item.classList.toggle("can-complete", id !== null);
     item.dataset.taskId = id === null ? "" : id;
     if (id !== null) {
