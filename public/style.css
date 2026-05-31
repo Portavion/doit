@@ -162,6 +162,8 @@ input {
 }
 
 button {
+  position: relative;
+  overflow: hidden;
   border: 3px solid #31233a;
   padding: 10px 12px;
   background: #9ed6d2;
@@ -169,6 +171,10 @@ button {
   font-weight: 800;
   border-radius: 0;
   box-shadow: 3px 3px 0 #31233a;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 button:disabled {
@@ -270,6 +276,13 @@ button:disabled {
   .tasks li.can-complete:hover {
     transform: translate(-2px, -5px) rotate(-1deg);
     box-shadow: 9px 11px 0 #31233a;
+  }
+
+  #submit:not(:disabled):hover,
+  #refresh:not(:disabled):hover {
+    background: #bce9e5;
+    box-shadow: 5px 5px 0 #31233a;
+    transform: translate(-1px, -1px);
   }
 
   .complete-button:hover {
