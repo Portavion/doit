@@ -43,6 +43,7 @@ pub struct TaskConfig {
 #[derive(Deserialize)]
 struct AddTaskRequest {
     description: String,
+    uri: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -181,13 +182,25 @@ async fn add_task(
     if description.chars().count() > MAX_DESCRIPTION_LEN {
         return Err(AppError::bad_request("description is too long"));
     }
+    let uri = payload
+        .uri
+        .as_deref()
+        .map(str::trim)
+        .filter(|uri| !uri.is_empty());
 
     with_task_lock(&state.task, || async {
-        let output = run_task(
-            &state.task,
-            ["add", "project:Inbox", "due:tomorrow", "--", description],
-        )
-        .await?;
+        let mut args = vec![
+            OsString::from("add"),
+            OsString::from("project:Inbox"),
+            OsString::from("due:tomorrow"),
+        ];
+        if let Some(uri) = uri {
+            args.push(OsString::from(format!("uri:{uri}")));
+        }
+        args.push(OsString::from("--"));
+        args.push(OsString::from(description));
+
+        let output = run_task(&state.task, args).await?;
         ensure_success("task add", output.status, &output.stderr)?;
 
         sync_tasks(&state.task).await?;

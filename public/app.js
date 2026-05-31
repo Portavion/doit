@@ -1,5 +1,7 @@
 const form = document.querySelector("#task-form");
 const input = document.querySelector("#description");
+const uriToggle = document.querySelector("#uri-toggle");
+const uriInput = document.querySelector("#uri-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const statusText = document.querySelector("#status");
@@ -190,6 +192,7 @@ async function loadTasks() {
 async function addTask(event) {
   event.preventDefault();
   const description = input.value.trim();
+  const uri = uriInput.value.trim();
   if (!description) {
     showStatus("Describe the mission first");
     return;
@@ -197,13 +200,19 @@ async function addTask(event) {
 
   submit.disabled = true;
   showStatus("Adding...");
+  const body = { description };
+  if (uri !== "") {
+    body.uri = uri;
+  }
   try {
     const response = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description }),
+      body: JSON.stringify(body),
     });
     input.value = "";
+    uriInput.value = "";
+    hideUriField();
     renderTasks(await parseResponse(response));
   } catch (error) {
     showStatus(error.message);
@@ -211,6 +220,34 @@ async function addTask(event) {
     submit.disabled = false;
     input.focus();
   }
+}
+
+function showUriField() {
+  uriInput.hidden = false;
+  uriToggle.classList.add("active");
+  uriToggle.setAttribute("aria-expanded", "true");
+  uriInput.focus();
+}
+
+function hideUriField() {
+  uriInput.hidden = true;
+  uriToggle.classList.remove("active");
+  uriToggle.setAttribute("aria-expanded", "false");
+}
+
+function toggleUriField() {
+  if (uriInput.hidden) {
+    showUriField();
+    return;
+  }
+
+  if (uriInput.value.trim() === "") {
+    hideUriField();
+    input.focus();
+    return;
+  }
+
+  uriInput.focus();
 }
 
 function handleTaskClick(event) {
@@ -282,6 +319,7 @@ function handleTaskPointerdown(event) {
 }
 
 form.addEventListener("submit", addTask);
+uriToggle.addEventListener("click", toggleUriField);
 refresh.addEventListener("click", loadTasks);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);

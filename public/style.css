@@ -152,6 +152,34 @@ label {
   gap: 8px;
 }
 
+.command-strip {
+  display: flex;
+  margin-top: 8px;
+  padding-left: 10px;
+}
+
+.command-button {
+  min-width: 46px;
+  min-height: 28px;
+  padding: 4px 9px;
+  background: #fff;
+  color: #6c5176;
+  font-size: 11px;
+  box-shadow: 3px 3px 0 #31233a;
+}
+
+.command-button.active {
+  background: #b8f08b;
+  color: #31233a;
+}
+
+.uri-input {
+  margin-top: 8px;
+  padding: 9px 12px;
+  color: #55505a;
+  font-size: 12px;
+}
+
 input {
   width: 100%;
   min-width: 0;

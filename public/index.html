@@ -33,6 +33,10 @@
           <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Add a tiny mission">
           <button id="submit" type="submit">Add</button>
         </div>
+        <div class="command-strip">
+          <button id="uri-toggle" class="command-button" type="button" aria-controls="uri-field" aria-expanded="false">URI</button>
+        </div>
+        <input id="uri-field" class="uri-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com" hidden>
       </form>
 
       <section class="toolbar" aria-live="polite">
