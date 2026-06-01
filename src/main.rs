@@ -246,13 +246,16 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
         .map_err(|err| AppError::internal(format!("failed to parse task export output: {err}")))?
         .into_iter()
         .filter(|task| !task.description.trim().is_empty())
-        .map(|task| TaskItem {
-            description: task.description,
-            id: task.id,
-            project: task.project,
-            due: task.due,
-            uri: task.uri,
-            urg: task.urgency,
+        .map(|task| {
+            let (description, uri) = task_description_and_uri(task.description, task.uri);
+            TaskItem {
+                description,
+                id: task.id,
+                project: task.project,
+                due: task.due,
+                uri,
+                urg: task.urgency,
+            }
         })
         .collect();
     items.sort_by(|a, b| {
@@ -262,6 +265,28 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
             .then_with(|| a.id.cmp(&b.id))
     });
     Ok(items)
+}
+
+fn task_description_and_uri(description: String, uri: Option<String>) -> (String, Option<String>) {
+    if uri.is_some() {
+        return (description, uri);
+    }
+
+    if !description.starts_with("uri:") {
+        return (description, None);
+    }
+
+    let mut parts = description.splitn(2, char::is_whitespace);
+    let Some(uri_part) = parts.next() else {
+        return (description, None);
+    };
+    let uri = uri_part.trim_start_matches("uri:");
+    if uri.is_empty() {
+        return (description, None);
+    }
+
+    let description = parts.next().unwrap_or("").trim_start().to_string();
+    (description, Some(uri.to_string()))
 }
 
 async fn with_task_lock<F, Fut, T>(config: &TaskConfig, work: F) -> Result<T, AppError>
@@ -340,6 +365,8 @@ where
     let mut command_args = vec![
         OsString::from("rc.confirmation:no"),
         OsString::from("rc.recurrence.confirmation:no"),
+        OsString::from("rc.uda.uri.type:string"),
+        OsString::from("rc.uda.uri.label:URI"),
     ];
     command_args.extend(args.into_iter().map(|arg| arg.as_ref().to_os_string()));
     command_args
@@ -434,6 +461,8 @@ mod tests {
             vec![
                 OsString::from("rc.confirmation:no"),
                 OsString::from("rc.recurrence.confirmation:no"),
+                OsString::from("rc.uda.uri.type:string"),
+                OsString::from("rc.uda.uri.label:URI"),
                 OsString::from("add"),
                 OsString::from("project:Inbox"),
                 OsString::from("due:tomorrow"),
@@ -467,5 +496,18 @@ mod tests {
         assert_eq!(items[0].project.as_deref(), Some("Work"));
         assert_eq!(items[1].description, "Alpha task");
         assert_eq!(items[1].uri.as_deref(), Some("https://example.com/alpha"));
+    }
+
+    #[test]
+    fn task_items_from_export_recovers_legacy_uri_description_prefix() {
+        let stdout = r#"[
+{"id":1,"description":"uri:https://example.com/alpha Alpha task","project":"Inbox","due":"20260531T000000Z","urgency":9.5}
+]"#;
+
+        let items = task_items_from_export(stdout).expect("valid export");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].description, "Alpha task");
+        assert_eq!(items[0].uri.as_deref(), Some("https://example.com/alpha"));
     }
 }
