@@ -715,6 +715,200 @@ button:disabled {
   border: 3px solid #31233a;
 }
 
+.mockup-shell {
+  padding-bottom: 28px;
+}
+
+.mockup-hero {
+  grid-template-columns: 72px 1fr;
+}
+
+.mockup-panel {
+  border: 4px solid #31233a;
+  padding: 14px;
+  background: #d8f2ff;
+  box-shadow: 6px 6px 0 #31233a;
+}
+
+.mockup-note {
+  margin: 0;
+  color: #6c5176;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.mockup-tasks {
+  margin-top: 12px;
+}
+
+.mockup-tasks li {
+  grid-template-columns: 42px 1fr 38px;
+}
+
+.mockup-tasks .sprite {
+  margin-left: 5px;
+}
+
+.sprite.nodue-1,
+.sprite.nodue-2,
+.sprite.nodue-3,
+.sprite.nodue-4,
+.sprite.nodue-5 {
+  background: transparent;
+  border-color: transparent;
+}
+
+.sprite.nodue-1::before,
+.sprite.nodue-2::before,
+.sprite.nodue-3::before,
+.sprite.nodue-4::before,
+.sprite.nodue-5::before {
+  display: none;
+}
+
+.sprite.nodue-1::after,
+.sprite.nodue-2::after,
+.sprite.nodue-3::after,
+.sprite.nodue-4::after,
+.sprite.nodue-5::after {
+  display: none;
+}
+
+.sprite.nodue-1 i,
+.sprite.nodue-1 b,
+.sprite.nodue-1 em,
+.sprite.nodue-2 i,
+.sprite.nodue-2 b,
+.sprite.nodue-2 em,
+.sprite.nodue-3 i,
+.sprite.nodue-3 b,
+.sprite.nodue-3 em,
+.sprite.nodue-4 i,
+.sprite.nodue-4 b,
+.sprite.nodue-4 em,
+.sprite.nodue-5 i,
+.sprite.nodue-5 b,
+.sprite.nodue-5 em {
+  background: transparent;
+  color: #31233a;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sprite.nodue-1 i::before,
+.sprite.nodue-1 b::before,
+.sprite.nodue-1 em::before,
+.sprite.nodue-2 i::before,
+.sprite.nodue-2 b::before,
+.sprite.nodue-2 em::before,
+.sprite.nodue-3 i::before,
+.sprite.nodue-3 b::before,
+.sprite.nodue-3 em::before,
+.sprite.nodue-4 i::before,
+.sprite.nodue-4 b::before,
+.sprite.nodue-4 em::before,
+.sprite.nodue-5 i::before,
+.sprite.nodue-5 b::before,
+.sprite.nodue-5 em::before {
+  content: "?";
+}
+
+.sprite.nodue-1 i {
+  left: 0;
+  top: 2px;
+  color: #9ed6d2;
+  font-size: 24px;
+  transform: rotate(-8deg);
+}
+
+.sprite.nodue-1 em {
+  display: none;
+}
+
+.sprite.nodue-1 b {
+  left: 15px;
+  top: -7px;
+  color: #ff8fc5;
+  font-size: 27px;
+  transform: rotate(8deg);
+}
+
+.sprite.nodue-2 i {
+  left: 3px;
+  top: -5px;
+  font-size: 32px;
+}
+
+.sprite.nodue-2 em {
+  display: none;
+}
+
+.sprite.nodue-2 b {
+  left: 21px;
+  top: 6px;
+  color: #85c7ff;
+  font-size: 18px;
+}
+
+.sprite.nodue-3 i {
+  left: -2px;
+  top: 2px;
+  color: #9ed6d2;
+  font-size: 23px;
+}
+
+.sprite.nodue-3 b {
+  left: 12px;
+  top: -6px;
+  color: #ff8fc5;
+  font-size: 24px;
+}
+
+.sprite.nodue-3 em {
+  display: none;
+}
+
+.sprite.nodue-4 i {
+  left: -2px;
+  top: 3px;
+  color: #ff8fc5;
+  font-size: 18px;
+}
+
+.sprite.nodue-4 b {
+  left: 9px;
+  top: -7px;
+  color: #31233a;
+  font-size: 28px;
+}
+
+.sprite.nodue-4 em {
+  left: 23px;
+  top: 5px;
+  color: #9ed6d2;
+  font-size: 18px;
+}
+
+.sprite.nodue-5 i {
+  left: -5px;
+  top: 2px;
+  color: #ff8fc5;
+  font-size: 20px;
+}
+
+.sprite.nodue-5 b {
+  left: 7px;
+  top: -8px;
+  font-size: 29px;
+}
+
+.sprite.nodue-5 em {
+  left: 22px;
+  top: 3px;
+  color: #85c7ff;
+  font-size: 20px;
+}
+
 @media (max-width: 360px) {
   .shell {
     padding: 10px;

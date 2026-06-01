@@ -10,6 +10,7 @@ const coarsePointer = window.matchMedia("(pointer: coarse)");
 const completeHoldMs = 850;
 let completingTaskId = null;
 const spriteVariants = {
+  nodue: ["nodue-1", "nodue-2", "nodue-3", "nodue-4", "nodue-5"],
   overdue: ["angry-1", "angry-2", "angry-3", "angry-4", "angry-5"],
   today: ["today-1", "today-2", "today-3", "today-4", "today-5"],
   tomorrow: ["sleep-1", "sleep-2", "sleep-3", "sleep-4", "sleep-5"],
@@ -69,6 +70,9 @@ function variantIndex(key, count) {
 
 function spriteClass(task, dueDay, currentDay, nextDay, description) {
   let state = "default";
+  if (dueDay === "") {
+    state = "nodue";
+  }
   if (dueDay !== "" && dueDay < currentDay) {
     state = "overdue";
   }
