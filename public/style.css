@@ -338,6 +338,13 @@ button:disabled {
     transform: translate(-1px, -1px);
   }
 
+  #uri-toggle:not(:disabled):hover {
+    background: #b8f08b;
+    box-shadow: 5px 5px 0 #31233a;
+    color: #31233a;
+    transform: translate(-1px, -1px);
+  }
+
   .complete-button:hover {
     animation: checkbox-wiggle 420ms ease;
     background: #b8f08b;
