@@ -141,6 +141,7 @@ function renderTasks(tasks) {
       link.className = "task-uri";
       link.href = uri;
       link.textContent = uri;
+      link.title = uri;
       link.target = "_blank";
       link.rel = "noreferrer";
       content.append(link);

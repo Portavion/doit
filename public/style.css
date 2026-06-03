@@ -296,13 +296,17 @@ button:disabled {
 }
 
 .task-uri {
-  justify-self: start;
+  display: block;
+  justify-self: stretch;
+  width: calc(100% - 14px);
   margin-left: 14px;
   color: #77717a;
   font-size: 11px;
   line-height: 1.2;
   text-decoration-color: #b5adb8;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-uri:focus-visible {
