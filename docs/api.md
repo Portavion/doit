@@ -35,6 +35,7 @@ Response:
   {
     "description": "Book train tickets",
     "id": 12,
+    "uuid": "b470e4fb-bca3-4416-8076-67998818ea05",
     "project": "Inbox",
     "due": "20260604T000000Z",
     "uri": "https://example.com",
@@ -44,6 +45,7 @@ Response:
 ```
 
 Tasks with empty descriptions are filtered out. Results are sorted by urgency descending.
+`uuid` is read from Taskwarrior export and is stable across devices; Doit uses it for workflow state when available.
 
 ## Add Task
 
@@ -72,6 +74,51 @@ task add project:Inbox due:tomorrow -- "Book train tickets"
 If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
 
 Response: the updated task list.
+
+## Workflow Session
+
+```http
+GET /api/workflow-session
+```
+
+Returns the current app-owned FPV workflow session for the authenticated user:
+
+```json
+{
+  "user": "portalier.g@gmail.com",
+  "session": null,
+  "updated_at": null
+}
+```
+
+Doit uses the `Cf-Access-Authenticated-User-Email` header when Cloudflare Access is present. Without that header, it falls back to `DOIT_DEFAULT_USER_EMAIL`.
+
+```http
+PUT /api/workflow-session
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "session": {
+    "date": "2026-06-03",
+    "entries": [],
+    "scanMarkedKeys": [],
+    "scanCursorKey": "",
+    "runKeys": []
+  }
+}
+```
+
+The session is stored in Doit's own JSON file, not in Taskwarrior. The default path is `$HOME/.local/share/doit/session.json`; override it with `DOIT_SESSION_FILE`.
+
+```http
+DELETE /api/workflow-session
+```
+
+Clears the stored FPV workflow session for the current user.
 
 ## Complete Task
 

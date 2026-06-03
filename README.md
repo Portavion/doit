@@ -75,6 +75,9 @@ Binary releases are expected to be published from tagged releases once release a
 | `TASK_LOCK` | `$TASKDATA/task.lock` or `.dev/task/task.lock` | Lock file used to serialize `task` commands |
 | `TASK_TIMEOUT_SECS` | `10` | Timeout for each `task` command |
 | `TASK_SYNC` | `true` | Set to `false` or `0` to skip `task sync` |
+| `DOIT_SESSION_FILE` | `$HOME/.local/share/doit/session.json` | JSON file used for app-owned FPV workflow state |
+| `DOIT_SESSION_LOCK` | `DOIT_SESSION_FILE` with `.lock` extension | Lock file used to serialize workflow state writes |
+| `DOIT_DEFAULT_USER_EMAIL` | `portalier.g@gmail.com` | Fallback workflow state user when Cloudflare Access does not provide an email header |
 
 Doit also passes non-interactive Taskwarrior overrides for confirmation prompts and the `uri` UDA.
 

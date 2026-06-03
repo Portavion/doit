@@ -12,13 +12,13 @@ const list = document.querySelector("#tasks");
 const tomorrowList = document.querySelector("#tomorrow-tasks");
 const coarsePointer = window.matchMedia("(pointer: coarse)");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-const sessionStorageKey = "doit.fpvSession.v2";
+const legacySessionStorageKey = "doit.fpvSession.v2";
 const taskCacheStorageKey = "doit.taskCache.v1";
 const completeHoldMs = 850;
 let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
-let session = loadSession();
+let session = defaultSession();
 
 const spriteVariants = {
   nodue: ["nodue-1", "nodue-2", "nodue-3", "nodue-4", "nodue-5"],
@@ -112,6 +112,7 @@ function normalizeEntry(entry) {
     key: typeof entry.key === "string" ? entry.key : "",
     taskKey: typeof entry.taskKey === "string" ? entry.taskKey : "",
     id: typeof entry.id === "number" ? entry.id : null,
+    uuid: typeof entry.uuid === "string" ? entry.uuid : null,
     description,
     project: typeof entry.project === "string" ? entry.project : null,
     due: typeof entry.due === "string" ? entry.due : null,
@@ -141,31 +142,92 @@ function normalizeEntry(entry) {
   return next;
 }
 
-function loadSession() {
-  const stored = readStoredJson(sessionStorageKey, null);
-  if (!stored || stored.date !== storageDateKey()) {
+function normalizeSession(value) {
+  if (!value || typeof value !== "object" || value.date !== storageDateKey()) {
     return defaultSession();
   }
 
-  const entries = Array.isArray(stored.entries)
-    ? stored.entries.map(normalizeEntry).filter(Boolean)
+  const entries = Array.isArray(value.entries)
+    ? value.entries.map(normalizeEntry).filter(Boolean)
     : [];
   return {
     ...defaultSession(),
-    ...stored,
+    ...value,
     entries,
-    completedKeys: normalizeKeyList(stored.completedKeys),
-    startedKeys: normalizeKeyList(stored.startedKeys),
-    clearedKeys: normalizeKeyList(stored.clearedKeys),
-    scanMarkedKeys: normalizeKeyList(stored.scanMarkedKeys),
+    completedKeys: normalizeKeyList(value.completedKeys),
+    startedKeys: normalizeKeyList(value.startedKeys),
+    clearedKeys: normalizeKeyList(value.clearedKeys),
+    scanMarkedKeys: normalizeKeyList(value.scanMarkedKeys),
     scanCursorKey:
-      typeof stored.scanCursorKey === "string" ? stored.scanCursorKey : "",
-    runKeys: normalizeKeyList(stored.runKeys),
+      typeof value.scanCursorKey === "string" ? value.scanCursorKey : "",
+    runKeys: normalizeKeyList(value.runKeys),
   };
 }
 
 function saveSession() {
-  writeStoredJson(sessionStorageKey, session);
+  clearLegacySession();
+  void saveWorkflowSession();
+}
+
+function clearLegacySession() {
+  try {
+    localStorage.removeItem(legacySessionStorageKey);
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
+}
+
+function resetSessionAfterIssue(message = "Workflow session reset") {
+  session = defaultSession();
+  lastTouchedKey = "";
+  clearLegacySession();
+  showStatus(message);
+  renderApp({ animated: true });
+}
+
+async function loadWorkflowSession() {
+  try {
+    const response = await fetch("/api/workflow-session");
+    const body = await parseResponse(response);
+    clearLegacySession();
+    session = normalizeSession(body.session);
+    if (body.session && !hasSession()) {
+      await clearWorkflowSession();
+      showStatus("Workflow session reset");
+    }
+    renderApp({ animated: true, focusKey: session.scanCursorKey });
+  } catch {
+    resetSessionAfterIssue();
+  }
+}
+
+async function saveWorkflowSession() {
+  if (!hasSession()) {
+    await clearWorkflowSession();
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/workflow-session", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session }),
+    });
+    await parseResponse(response);
+  } catch {
+    resetSessionAfterIssue();
+  }
+}
+
+async function clearWorkflowSession() {
+  try {
+    const response = await fetch("/api/workflow-session", {
+      method: "DELETE",
+    });
+    await parseResponse(response);
+  } catch {
+    resetSessionAfterIssue();
+  }
 }
 
 function loadTaskCache() {
@@ -233,6 +295,13 @@ function taskId(task) {
   return typeof task?.id === "number" ? task.id : null;
 }
 
+function taskUuid(task) {
+  if (typeof task?.uuid === "string" && task.uuid.trim() !== "") {
+    return task.uuid.trim();
+  }
+  return null;
+}
+
 function hashText(value) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -247,6 +316,10 @@ function taskFingerprint(task) {
 }
 
 function taskKey(task) {
+  const uuid = taskUuid(task);
+  if (uuid !== null) {
+    return `task:${uuid}`;
+  }
   const id = taskId(task);
   if (id !== null) {
     return `task:${id}`;
@@ -259,6 +332,7 @@ function entryFromTask(task, key = taskKey(task)) {
     key,
     taskKey: taskKey(task),
     id: taskId(task),
+    uuid: taskUuid(task),
     description: taskDescription(task),
     project: typeof task?.project === "string" ? task.project : null,
     due: typeof task?.due === "string" ? task.due : null,
@@ -470,6 +544,7 @@ function reconcileSession(tasks) {
     for (const field of [
       "taskKey",
       "id",
+      "uuid",
       "description",
       "project",
       "due",
@@ -511,11 +586,8 @@ function handleSessionButton() {
 function stopSession(message = "Stopped FPV session") {
   session = defaultSession();
   lastTouchedKey = "";
-  try {
-    localStorage.removeItem(sessionStorageKey);
-  } catch {
-    showStatus("Browser storage is unavailable");
-  }
+  clearLegacySession();
+  void clearWorkflowSession();
   showStatus(message);
   renderApp({ animated: true });
 }
@@ -1160,6 +1232,12 @@ refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
-input.focus();
-renderApp();
-loadTasks();
+
+async function initApp() {
+  input.focus();
+  renderApp();
+  await loadWorkflowSession();
+  await loadTasks();
+}
+
+void initApp();
