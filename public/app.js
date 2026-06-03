@@ -698,17 +698,24 @@ function startAgain(key) {
     return;
   }
 
+  const nextEntry = readdedEntry(entry);
+  session.entries.push(nextEntry);
   const runFinished = crossOff(key, "startedKeys");
   if (runFinished) {
-    stopSession("FPV session complete");
+    session.runKeys = [];
+    session.scanMarkedKeys = [];
+    session.scanCursorKey = "";
+    lastTouchedKey = nextEntry.key;
+    compactSession();
+    saveSession();
+    showStatus("Moved to end");
+    renderApp({ animated: true, focusKey: nextEntry.key });
     return;
   }
 
-  const nextEntry = readdedEntry(entry);
-  session.entries.push(nextEntry);
   lastTouchedKey = nextEntry.key;
   saveSession();
-  showStatus("Re-added for next session");
+  showStatus("Moved to end");
   renderApp({ animated: true, focusKey: activeRunKeys()[0] || "" });
 }
 
