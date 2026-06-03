@@ -320,15 +320,15 @@ function todayWorkTasks(tasks) {
   const currentDay = todayKey();
   return tasks.filter((task) => {
     const dueDay = dueDateKey(task);
-    return dueDay === "" || dueDay <= currentDay;
+    return dueDay !== "" && dueDay <= currentDay;
   });
 }
 
-function tomorrowWorkTasks(tasks) {
+function futureWorkTasks(tasks) {
   const currentDay = todayKey();
   return tasks.filter((task) => {
     const dueDay = dueDateKey(task);
-    return dueDay !== "" && dueDay > currentDay;
+    return dueDay === "" || dueDay > currentDay;
   });
 }
 
@@ -791,7 +791,7 @@ function renderRunTasks() {
 function renderTomorrowTasks() {
   tomorrowList.textContent = "";
   const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
-  const tasks = tomorrowWorkTasks(latestTasks).filter(
+  const tasks = futureWorkTasks(latestTasks).filter(
     (task) => !sessionTaskKeys.has(taskKey(task)),
   );
   tomorrowStatus.textContent = `${tasks.length} future`;
