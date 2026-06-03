@@ -6,6 +6,7 @@ export TASK_SYNC := "false"
 
 dev:
     mkdir -p .dev/task
+    test -f .dev/taskrc || cp .dev/taskrc.example .dev/taskrc
     cargo run
 
 fmt:

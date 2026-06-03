@@ -24,6 +24,7 @@
 
           shellHook = ''
             mkdir -p .dev/task
+            test -f .dev/taskrc || cp .dev/taskrc.example .dev/taskrc
             export TASKRC="$PWD/.dev/taskrc"
             export TASKDATA="$PWD/.dev/task"
             export TASK_SYNC=false

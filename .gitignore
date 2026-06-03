@@ -1,2 +1,11 @@
 /target/
 /.dev/task/
+/.dev/taskrc
+/.env
+/.env.*
+!.env.example
+*.key
+*.pem
+.DS_Store
+/.idea/
+/.vscode/

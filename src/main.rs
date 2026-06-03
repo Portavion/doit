@@ -476,7 +476,7 @@ mod tests {
     fn taskrc_home_uses_absolute_taskrc_parent() {
         assert_eq!(
             taskrc_home(std::path::Path::new("/home/alice/.taskrc")),
-            Some(PathBuf::from("/root"))
+            Some(PathBuf::from("/home/alice"))
         );
         assert_eq!(taskrc_home(std::path::Path::new(".dev/taskrc")), None);
     }

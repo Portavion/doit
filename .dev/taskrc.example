@@ -1,0 +1,6 @@
+data.location=.dev/task
+confirmation=no
+verbose=nothing
+news.version=3.0.0
+uda.uri.type=string
+uda.uri.label=URI

@@ -2,6 +2,13 @@
 name = "doit"
 version = "0.1.0"
 edition = "2021"
+description = "Mobile-friendly web UI for Taskwarrior task capture and completion"
+license = "MIT"
+repository = "https://github.com/Portavion/doit"
+readme = "README.md"
+keywords = ["taskwarrior", "taskchampion", "tasks", "todo"]
+categories = ["command-line-utilities", "web-programming::http-server"]
+publish = false
 
 [dependencies]
 anyhow = "1"
