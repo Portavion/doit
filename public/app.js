@@ -920,8 +920,11 @@ function renderTaskItem(target, entry, options = {}) {
   const isCurrent = inSession && current?.key === entry.key;
   const candidate = scanCandidateEntry();
   const isCandidate = inSession && candidate?.key === entry.key;
+  const sessionActive = scanActive() || runActive();
   const canQuickComplete =
-    !options.tomorrow && entry.id !== null && (!inSession || isCurrent);
+    !options.tomorrow &&
+    entry.id !== null &&
+    (!inSession || isCurrent || !sessionActive);
 
   item.className = "task-item";
   item.style.setProperty("--task-index", String(options.index || 0));
