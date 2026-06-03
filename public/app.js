@@ -328,4 +328,5 @@ uriToggle.addEventListener("click", toggleUriField);
 refresh.addEventListener("click", loadTasks);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
+input.focus();
 loadTasks();
