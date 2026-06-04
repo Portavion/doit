@@ -7,7 +7,15 @@
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <link rel="stylesheet" href="/style.css?v=20260604-no-card-flash-2">
+    <script>
+      try {
+        const colorscheme = localStorage.getItem("doit.colorscheme.v1");
+        if (["everforest", "gruvbox", "rose-pine"].includes(colorscheme)) {
+          document.documentElement.classList.add(`colorscheme-${colorscheme}`);
+        }
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="/style.css?v=20260604-colorschemes-2">
   </head>
   <body>
     <main class="shell">
@@ -24,6 +32,21 @@
           <span class="body"></span>
           <span class="shoe left"></span>
           <span class="shoe right"></span>
+        </div>
+        <div class="settings">
+          <button id="settings-toggle" class="icon-button" type="button" aria-label="Open settings" aria-controls="settings-menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"></path>
+              <path d="M19.4 15a8.4 8.4 0 0 0 .1-1 8.4 8.4 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8.2 8.2 0 0 0-1.7-1L15 5.5h-4l-.3 2.6a8.2 8.2 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a8.4 8.4 0 0 0-.1 1 8.4 8.4 0 0 0 .1 1l-2 1.5 2 3.4 2.4-1a8.2 8.2 0 0 0 1.7 1l.3 2.6h4l.3-2.6a8.2 8.2 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5Z"></path>
+            </svg>
+          </button>
+          <div id="settings-menu" class="settings-menu" hidden>
+            <p>Colourscheme</p>
+            <label><input type="radio" name="colorscheme" value="default"> Default</label>
+            <label><input type="radio" name="colorscheme" value="everforest"> Everforest</label>
+            <label><input type="radio" name="colorscheme" value="gruvbox"> Gruvbox</label>
+            <label><input type="radio" name="colorscheme" value="rose-pine"> Rose Pine</label>
+          </div>
         </div>
       </header>
 
@@ -58,6 +81,6 @@
       <ul id="tomorrow-tasks" class="tasks tomorrow-tasks"></ul>
     </main>
 
-    <script src="/app.js?v=20260604-no-card-flash-2"></script>
+    <script src="/app.js?v=20260604-colorschemes-2"></script>
   </body>
 </html>

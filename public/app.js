@@ -5,6 +5,8 @@ const uriInput = document.querySelector("#uri-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const sessionButton = document.querySelector("#session");
+const settingsToggle = document.querySelector("#settings-toggle");
+const settingsMenu = document.querySelector("#settings-menu");
 const statusText = document.querySelector("#status");
 const listCaption = document.querySelector("#list-caption");
 const tomorrowStatus = document.querySelector("#tomorrow-status");
@@ -14,11 +16,14 @@ const coarsePointer = window.matchMedia("(pointer: coarse)");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const legacySessionStorageKey = "doit.fpvSession.v2";
 const taskCacheStorageKey = "doit.taskCache.v1";
+const colorschemeStorageKey = "doit.colorscheme.v1";
 const completeHoldMs = 850;
 let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
 let session = defaultSession();
+
+const colorschemes = ["default", "everforest", "gruvbox", "rose-pine"];
 
 const spriteVariants = {
   nodue: ["nodue-1", "nodue-2", "nodue-3", "nodue-4", "nodue-5"],
@@ -71,6 +76,40 @@ function readStoredJson(key, fallback) {
 function writeStoredJson(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
+}
+
+function storedColorscheme() {
+  try {
+    const value = localStorage.getItem(colorschemeStorageKey);
+    if (colorschemes.includes(value)) {
+      return value;
+    }
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
+  return "default";
+}
+
+function applyColorscheme(colorscheme) {
+  const selected = colorschemes.includes(colorscheme) ? colorscheme : "default";
+  document.documentElement.classList.remove(
+    ...colorschemes.map((name) => `colorscheme-${name}`),
+  );
+  if (selected !== "default") {
+    document.documentElement.classList.add(`colorscheme-${selected}`);
+  }
+  for (const option of settingsMenu.querySelectorAll("[name='colorscheme']")) {
+    option.checked = option.value === selected;
+  }
+}
+
+function saveColorscheme(colorscheme) {
+  applyColorscheme(colorscheme);
+  try {
+    localStorage.setItem(colorschemeStorageKey, colorscheme);
   } catch {
     showStatus("Browser storage is unavailable");
   }
@@ -1403,6 +1442,44 @@ function toggleUriField() {
   uriInput.focus();
 }
 
+function openSettings() {
+  settingsMenu.hidden = false;
+  settingsToggle.setAttribute("aria-expanded", "true");
+}
+
+function closeSettings() {
+  settingsMenu.hidden = true;
+  settingsToggle.setAttribute("aria-expanded", "false");
+}
+
+function toggleSettings() {
+  if (settingsMenu.hidden) {
+    openSettings();
+    return;
+  }
+  closeSettings();
+}
+
+function handleSettingsChange(event) {
+  if (event.target.name !== "colorscheme") {
+    return;
+  }
+  saveColorscheme(event.target.value);
+}
+
+function handleDocumentClick(event) {
+  if (settingsMenu.hidden || event.target.closest(".settings")) {
+    return;
+  }
+  closeSettings();
+}
+
+function handleDocumentKeydown(event) {
+  if (event.key === "Escape") {
+    closeSettings();
+  }
+}
+
 function handleTaskClick(event) {
   const complete = event.target.closest(".complete-button");
   if (!complete || coarsePointer.matches) {
@@ -1478,12 +1555,17 @@ form.addEventListener("submit", addTask);
 uriToggle.addEventListener("click", toggleUriField);
 refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
+settingsToggle.addEventListener("click", toggleSettings);
+settingsMenu.addEventListener("change", handleSettingsChange);
+document.addEventListener("click", handleDocumentClick);
+document.addEventListener("keydown", handleDocumentKeydown);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
 tomorrowList.addEventListener("click", handleTaskClick);
 tomorrowList.addEventListener("pointerdown", handleTaskPointerdown);
 
 async function initApp() {
+  applyColorscheme(storedColorscheme());
   input.focus();
   renderApp();
   await loadWorkflowSession();
