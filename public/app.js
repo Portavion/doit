@@ -650,9 +650,9 @@ function advanceScan(shouldMark) {
   }
 
   session.scanCursorKey = nextKey;
-  saveSession();
   showStatus(shouldMark ? "Dotted task" : "Skipped task");
   renderApp({ animated: true, focusKey: nextKey });
+  saveSession();
 }
 
 function finishScan(markedKey = "") {
@@ -661,10 +661,10 @@ function finishScan(markedKey = "") {
   session.runKeys = markedKeys.slice().reverse();
   session.scanMarkedKeys = [];
   session.scanCursorKey = "";
-  saveSession();
   const focusKey = activeRunKeys()[0] || markedKey || session.runKeys[0] || "";
   showStatus("Dotted chain ready");
   renderApp({ animated: true, focusKey });
+  saveSession();
 }
 
 function crossOff(key, bucket) {
@@ -715,8 +715,8 @@ function startAgain(key) {
 
 function renderApp({ animated = false, focusKey = "" } = {}) {
   renderSessionButton();
-  renderTasks();
-  renderTomorrowTasks();
+  renderTasks({ animated });
+  renderTomorrowTasks({ animated });
   if (animated) {
     scrollToTask(focusKey);
   }
@@ -728,9 +728,7 @@ function scrollToTask(key) {
   }
 
   requestAnimationFrame(() => {
-    const item = Array.from(list.querySelectorAll("[data-task-key]")).find(
-      (node) => node.dataset.taskKey === key,
-    );
+    const item = taskNodeByKey(key);
     if (!item) {
       return;
     }
@@ -739,6 +737,33 @@ function scrollToTask(key) {
       behavior: reducedMotion.matches ? "auto" : "smooth",
     });
   });
+}
+
+function taskNodeByKey(key) {
+  return Array.from(document.querySelectorAll(".tasks [data-task-key]")).find(
+    (node) => node.dataset.taskKey === key,
+  );
+}
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function markCompletingCard(key) {
+  const item = taskNodeByKey(key);
+  if (!item) {
+    return;
+  }
+
+  item.classList.add("completing", "complete-flash");
+  const button = item.querySelector(".complete-button");
+  if (button) {
+    button.disabled = true;
+  }
 }
 
 function createAction(label, className, handler, disabled = false) {
@@ -766,57 +791,64 @@ function renderSessionButton() {
   sessionButton.textContent = "Start";
 }
 
-function renderTasks() {
-  list.textContent = "";
-
+function renderTasks({ animated = false } = {}) {
   if (!hasSession()) {
-    renderReadyTasks();
+    renderReadyTasks({ animated });
     return;
   }
 
   compactSession();
   if (scanActive()) {
+    const items = [];
     listCaption.textContent = "Scanning top to bottom";
     session.entries.forEach((entry, index) => {
       if (isCrossed(entry.key)) {
         return;
       }
-      renderTaskItem(list, entry, { index, sessionTask: true });
+      pushTaskItem(items, entry, { index, sessionTask: true });
     });
+    renderKeyedList(list, items, animated);
     return;
   }
 
   if (session.runKeys.length > 0) {
-    renderRunTasks();
+    renderRunTasks({ animated });
     return;
   }
 
   const entries = openEntries();
+  const items = [];
   listCaption.textContent =
     entries.length === 0 ? "Session clear" : "Ready for the next pass";
   if (entries.length === 0) {
-    renderEmptyItem(list, "No open session tasks");
+    items.push(emptyListItem("today-empty", "No open session tasks"));
+    renderKeyedList(list, items, animated);
     return;
   }
   entries.forEach((entry, index) => {
-    renderTaskItem(list, entry, { index, sessionTask: true });
+    pushTaskItem(items, entry, { index, sessionTask: true });
   });
+  renderKeyedList(list, items, animated);
 }
 
-function renderReadyTasks() {
+function renderReadyTasks({ animated = false } = {}) {
   const tasks = todayWorkTasks(latestTasks);
+  const items = [];
   listCaption.textContent = "Ready to start";
   if (tasks.length === 0) {
-    renderEmptyItem(list, "Nothing due today");
+    items.push(emptyListItem("today-empty", "Nothing due today"));
+    renderKeyedList(list, items, animated);
     return;
   }
   tasks.forEach((task, index) => {
-    renderTaskItem(list, entryFromTask(task), { index, preview: true });
+    pushTaskItem(items, entryFromTask(task), { index, preview: true });
   });
+  renderKeyedList(list, items, animated);
 }
 
-function renderRunTasks() {
+function renderRunTasks({ animated = false } = {}) {
   const runKeySet = new Set(session.runKeys);
+  const items = [];
   let hiddenCount = 0;
   listCaption.textContent = activeRunKeys().length > 0
     ? "Dotted tasks only"
@@ -828,7 +860,7 @@ function renderRunTasks() {
     }
 
     if (runKeySet.has(entry.key)) {
-      renderTaskItem(list, entry, { index, sessionTask: true });
+      pushTaskItem(items, entry, { index, sessionTask: true });
       return;
     }
 
@@ -836,53 +868,243 @@ function renderRunTasks() {
   });
 
   if (hiddenCount > 0) {
-    renderHiddenSummary(hiddenCount);
+    items.push(hiddenListItem(hiddenCount));
   }
+  renderKeyedList(list, items, animated);
 }
 
-function renderTomorrowTasks() {
-  tomorrowList.textContent = "";
+function renderTomorrowTasks({ animated = false } = {}) {
   const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
   const tasks = futureWorkTasks(latestTasks).filter(
     (task) => !sessionTaskKeys.has(taskKey(task)),
   );
+  const items = [];
   tomorrowStatus.textContent = `${tasks.length} future`;
   if (tasks.length === 0) {
-    renderEmptyItem(tomorrowList, "No future tasks");
+    items.push(emptyListItem("future-empty", "No future tasks"));
+    renderKeyedList(tomorrowList, items, animated);
     return;
   }
   tasks.forEach((task, index) => {
-    renderTaskItem(tomorrowList, entryFromTask(task), {
+    pushTaskItem(items, entryFromTask(task), {
       tomorrow: true,
       index,
     });
   });
+  renderKeyedList(tomorrowList, items, animated);
 }
 
-function renderEmptyItem(target, message) {
-  const item = document.createElement("li");
-  item.className = "empty-state";
-  item.textContent = message;
-  target.append(item);
+function pushTaskItem(items, entry, options = {}) {
+  const current = currentRunEntry();
+  const candidate = scanCandidateEntry();
+  const isCurrent = Boolean(options.sessionTask) && current?.key === entry.key;
+  const isCandidate =
+    Boolean(options.sessionTask) && candidate?.key === entry.key;
+  items.push(taskListItem(entry, options));
+  if (isCandidate || isCurrent) {
+    items.push(actionListItem(entry, { isCandidate, isCurrent }));
+  }
 }
 
-function renderHiddenSummary(count) {
-  const item = document.createElement("li");
-  item.className = "hidden-summary";
-  item.textContent = `${count} undotted task${count === 1 ? "" : "s"} hidden`;
-  list.append(item);
+function taskListItem(entry, options) {
+  return {
+    key: `task:${entry.taskKey || entry.key}`,
+    type: "task",
+    entry,
+    options,
+  };
 }
 
-function renderTaskItem(target, entry, options = {}) {
+function actionListItem(entry, state) {
+  return {
+    key: state.isCandidate ? "action:scan" : "action:current",
+    type: "action",
+    entry,
+    state,
+  };
+}
+
+function emptyListItem(key, message) {
+  return {
+    key: `empty:${key}`,
+    type: "empty",
+    message,
+  };
+}
+
+function hiddenListItem(count) {
+  return {
+    key: "hidden:undotted",
+    type: "hidden",
+    count,
+  };
+}
+
+function renderKeyedList(target, items, animated = false) {
+  const before = animated ? measureListItems(target) : new Map();
+  const existing = new Map();
+  for (const node of Array.from(target.children)) {
+    if (node.dataset.renderKey) {
+      existing.set(node.dataset.renderKey, node);
+    }
+  }
+
+  const nextKeys = new Set();
+  for (const item of items) {
+    nextKeys.add(item.key);
+    let node = existing.get(item.key);
+    let created = false;
+    if (!node || node.dataset.renderType !== item.type) {
+      if (node) {
+        removeListNode(node, before.get(item.key), animated);
+      }
+      node = document.createElement("li");
+      created = true;
+    }
+
+    node.dataset.renderKey = item.key;
+    node.dataset.renderType = item.type;
+    patchListNode(node, item);
+    if (created && animated && !reducedMotion.matches) {
+      node.classList.add("entering");
+      node.addEventListener(
+        "animationend",
+        () => node.classList.remove("entering"),
+        { once: true },
+      );
+    }
+    target.append(node);
+  }
+
+  for (const node of Array.from(target.children)) {
+    if (!nextKeys.has(node.dataset.renderKey)) {
+      removeListNode(node, before.get(node.dataset.renderKey), animated);
+    }
+  }
+
+  if (animated) {
+    animateMovedItems(target, before);
+  }
+}
+
+function patchListNode(node, item) {
+  if (item.type === "task") {
+    patchTaskItem(node, item.entry, item.options);
+    return;
+  }
+  if (item.type === "action") {
+    patchActionItem(node, item.entry, item.state);
+    return;
+  }
+  if (item.type === "hidden") {
+    node.className = "hidden-summary";
+    node.textContent = `${item.count} undotted task${
+      item.count === 1 ? "" : "s"
+    } hidden`;
+    return;
+  }
+  node.className = "empty-state";
+  node.textContent = item.message;
+}
+
+function measureListItems(target) {
+  const items = new Map();
+  for (const node of Array.from(target.children)) {
+    if (node.dataset.renderKey) {
+      items.set(node.dataset.renderKey, node.getBoundingClientRect());
+    }
+  }
+  return items;
+}
+
+function animateMovedItems(target, before) {
+  if (reducedMotion.matches) {
+    return;
+  }
+
+  for (const node of Array.from(target.children)) {
+    const previous = before.get(node.dataset.renderKey);
+    if (!previous) {
+      continue;
+    }
+
+    const next = node.getBoundingClientRect();
+    const deltaX = previous.left - next.left;
+    const deltaY = previous.top - next.top;
+    if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) {
+      continue;
+    }
+
+    node.animate(
+      [
+        { transform: `translate(${deltaX}px, ${deltaY}px)` },
+        { transform: "translate(0, 0)" },
+      ],
+      {
+        duration: 220,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
+    );
+  }
+}
+
+function removeListNode(node, previous, animated) {
+  if (!animated || reducedMotion.matches || !previous) {
+    node.remove();
+    return;
+  }
+
+  const layer = document.createElement("ul");
+  const clone = node.cloneNode(true);
+  layer.className = "tasks removal-layer";
+  if (node.parentElement?.classList.contains("tomorrow-tasks")) {
+    layer.classList.add("tomorrow-tasks");
+  }
+  clone.classList.add("removing");
+  clone.removeAttribute("data-render-key");
+  clone.removeAttribute("data-render-type");
+  Object.assign(layer.style, {
+    position: "fixed",
+    inset: "0",
+    margin: "0",
+    padding: "0",
+    pointerEvents: "none",
+    zIndex: "20",
+  });
+  Object.assign(clone.style, {
+    position: "fixed",
+    left: `${previous.left}px`,
+    top: `${previous.top}px`,
+    width: `${previous.width}px`,
+    height: `${previous.height}px`,
+    margin: "0",
+    pointerEvents: "none",
+  });
+  layer.append(clone);
+  document.body.append(layer);
+  node.remove();
+  clone
+    .animate(
+      [
+        { opacity: 1, transform: "scale(1)" },
+        { opacity: 0, transform: "scale(0.96) translateY(-6px)" },
+      ],
+      {
+        duration: 180,
+        easing: "ease-out",
+      },
+    )
+    .finished.then(
+      () => layer.remove(),
+      () => layer.remove(),
+    );
+}
+
+function patchTaskItem(item, entry, options = {}) {
   const currentDay = todayKey();
   const nextDay = tomorrowKey();
   const description = entry.description;
   const dueDay = entry.dueDay || dueDateKey(entry);
-  const item = document.createElement("li");
-  const dot = document.createElement("span");
-  const sprite = document.createElement("span");
-  const content = document.createElement("span");
-  const title = document.createElement("span");
   const inSession = Boolean(options.sessionTask);
   const marked = inSession && isMarked(entry.key);
   const crossed = inSession && isCrossed(entry.key);
@@ -897,6 +1119,19 @@ function renderTaskItem(target, entry, options = {}) {
   const canQuickComplete =
     entry.id !== null &&
     (!inSession || isCurrent || !sessionActive);
+  const spriteClassName = spriteClass(
+    entry,
+    dueDay,
+    currentDay,
+    nextDay,
+    description,
+  );
+  const contentKey = JSON.stringify([
+    description,
+    entry.uri,
+    spriteClassName,
+    canQuickComplete,
+  ]);
 
   item.className = "task-item";
   item.style.setProperty("--task-index", String(options.index || 0));
@@ -916,10 +1151,24 @@ function renderTaskItem(target, entry, options = {}) {
   item.classList.toggle("can-complete", canQuickComplete);
   item.classList.toggle("completing", completingTaskKey === entry.key);
   item.dataset.taskKey = entry.key;
+  if (item.dataset.contentKey === contentKey) {
+    const button = item.querySelector(".complete-button");
+    if (button) {
+      button.disabled = completingTaskKey === entry.key;
+    }
+    return;
+  }
+
+  const dot = document.createElement("span");
+  const sprite = document.createElement("span");
+  const content = document.createElement("span");
+  const title = document.createElement("span");
+  item.dataset.contentKey = contentKey;
+  item.textContent = "";
 
   dot.className = "task-dot";
   dot.setAttribute("aria-hidden", "true");
-  sprite.className = spriteClass(entry, dueDay, currentDay, nextDay, description);
+  sprite.className = spriteClassName;
   sprite.append(document.createElement("i"), document.createElement("b"));
   sprite.append(document.createElement("em"));
 
@@ -941,20 +1190,14 @@ function renderTaskItem(target, entry, options = {}) {
 
   item.append(dot, sprite, content);
   if (canQuickComplete) {
-    item.append(completeButton(entry));
+    item.append(completeButton(entry, completingTaskKey === entry.key));
   }
-  target.append(item);
-  appendInlineActions(target, entry, { isCandidate, isCurrent });
 }
 
-function appendInlineActions(target, entry, state) {
-  if (!state.isCandidate && !state.isCurrent) {
-    return;
-  }
-
-  const actionItem = document.createElement("li");
+function patchActionItem(actionItem, entry, state) {
   const actions = document.createElement("div");
   actionItem.className = "task-action-row";
+  actionItem.textContent = "";
   actions.className = "task-actions";
   if (state.isCandidate) {
     const question = document.createElement("p");
@@ -977,7 +1220,6 @@ function appendInlineActions(target, entry, state) {
     );
   }
   actionItem.append(actions);
-  target.append(actionItem);
 }
 
 function isMarked(key) {
@@ -987,11 +1229,12 @@ function isMarked(key) {
   return session.runKeys.includes(key);
 }
 
-function completeButton(entry) {
+function completeButton(entry, disabled = false) {
   const button = document.createElement("button");
   button.className = "complete-button";
   button.type = "button";
   button.textContent = "✓";
+  button.disabled = disabled;
   button.setAttribute("aria-label", `Complete task: ${entry.description}`);
   return button;
 }
@@ -1014,10 +1257,35 @@ async function completeTaskByKey(key) {
     return;
   }
 
+  const previousTasks = latestTasks;
+  const previousSession = normalizeSession(session);
+  const sessionEntry = entryByKey(key);
+  const nextFocusKey = activeRunKeys().find((runKey) => runKey !== key) || "";
   completingTaskKey = key;
-  let sessionStopped = false;
-  renderApp({ animated: true, focusKey: key });
+  markCompletingCard(key);
+  await nextFrame();
+  await wait(90);
+  latestTasks = latestTasks.filter((task) => taskKey(task) !== entry.taskKey);
+  saveTaskCache(latestTasks);
+
+  let completedSession = false;
+  if (sessionEntry) {
+    const runFinished = crossOff(key, "completedKeys");
+    if (reconcileSession(latestTasks)) {
+      saveSession();
+    }
+    if (runFinished) {
+      completedSession = true;
+      session = defaultSession();
+      lastTouchedKey = "";
+      clearLegacySession();
+    }
+  } else if (hasSession() && reconcileSession(latestTasks)) {
+    saveSession();
+  }
+
   showStatus("Completing...");
+  renderApp({ animated: true, focusKey: nextFocusKey });
   try {
     const response = await fetch(`/api/tasks/${id}/complete`, {
       method: "POST",
@@ -1025,24 +1293,26 @@ async function completeTaskByKey(key) {
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
     if (hasSession()) {
-      const runFinished = crossOff(key, "completedKeys");
-      reconcileSession(latestTasks);
-      saveSession();
-      if (runFinished) {
-        sessionStopped = true;
-        stopSession("FPV session complete");
-        return;
+      if (reconcileSession(latestTasks)) {
+        saveSession();
       }
     }
-    showStatus("Completed");
-    renderApp({ animated: true, focusKey: activeRunKeys()[0] || key });
-  } catch (error) {
-    showStatus(error.message);
-  } finally {
-    completingTaskKey = null;
-    if (!sessionStopped) {
-      renderApp({ animated: true, focusKey: activeRunKeys()[0] || "" });
+    if (completedSession) {
+      void clearWorkflowSession();
     }
+    completingTaskKey = null;
+    showStatus(completedSession ? "FPV session complete" : "Completed");
+    renderApp({ animated: true, focusKey: activeRunKeys()[0] || "" });
+  } catch (error) {
+    latestTasks = previousTasks;
+    session = previousSession;
+    saveTaskCache(latestTasks);
+    if (hasSession()) {
+      saveSession();
+    }
+    completingTaskKey = null;
+    showStatus(error.message);
+    renderApp({ animated: true, focusKey: key });
   }
 }
 

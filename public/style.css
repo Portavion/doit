@@ -294,13 +294,16 @@ button:disabled {
   line-height: 1.35;
   overflow: hidden;
   touch-action: pan-y;
-  animation: task-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(var(--task-index, 0) * 28ms);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
     background 180ms ease,
     opacity 180ms ease;
+}
+
+.tasks li.entering {
+  animation: task-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--task-index, 0) * 18ms);
 }
 
 .tasks li::before {
@@ -319,6 +322,13 @@ button:disabled {
 
 .tasks li.completing {
   opacity: 0.65;
+}
+
+.tasks li.complete-flash {
+  --task-bg: #f1ffe8;
+  box-shadow:
+    6px 6px 0 #31233a,
+    inset 0 0 0 4px #b8f08b;
 }
 
 .tasks li.empty-state {
@@ -380,20 +390,14 @@ button:disabled {
   box-shadow:
     6px 6px 0 #31233a,
     inset 0 0 0 4px #ffe26f;
-  animation-name: task-enter, mark-ping;
-  animation-duration: 280ms, 1200ms;
-  animation-delay: calc(var(--task-index, 0) * 28ms), 0ms;
-  animation-iteration-count: 1, infinite;
+  animation: mark-ping 1200ms infinite;
 }
 
 .tasks li.current-task {
   box-shadow:
     6px 6px 0 #31233a,
     inset 0 0 0 4px #b8f08b;
-  animation-name: task-enter, current-bob;
-  animation-duration: 280ms, 1500ms;
-  animation-delay: calc(var(--task-index, 0) * 28ms), 0ms;
-  animation-iteration-count: 1, infinite;
+  animation: current-bob 1500ms infinite;
 }
 
 .tasks li.crossed-task {
