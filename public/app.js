@@ -922,7 +922,6 @@ function renderTaskItem(target, entry, options = {}) {
   const isCandidate = inSession && candidate?.key === entry.key;
   const sessionActive = scanActive() || runActive();
   const canQuickComplete =
-    !options.tomorrow &&
     entry.id !== null &&
     (!inSession || isCurrent || !sessionActive);
 
