@@ -426,7 +426,6 @@ button:disabled {
 
 .tomorrow-tasks li {
   --task-bg: #eef8ff;
-  grid-template-columns: 14px 32px 1fr;
 }
 
 .tasks li.due-today {
