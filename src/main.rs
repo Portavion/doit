@@ -1,17 +1,18 @@
 use std::{
+    collections::HashMap,
     env,
     ffi::{OsStr, OsString},
     fs::{self, OpenOptions},
     net::SocketAddr,
     path::PathBuf,
     process::Stdio,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::{Context, Result};
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -27,6 +28,7 @@ const MAX_DESCRIPTION_LEN: usize = 500;
 #[derive(Clone)]
 struct AppState {
     task: TaskConfig,
+    workflow: WorkflowConfig,
 }
 
 /// Runtime configuration for Taskwarrior commands
@@ -40,6 +42,13 @@ pub struct TaskConfig {
     timeout: Duration,
 }
 
+#[derive(Clone)]
+struct WorkflowConfig {
+    path: PathBuf,
+    lock_path: PathBuf,
+    default_user: String,
+}
+
 #[derive(Deserialize)]
 struct AddTaskRequest {
     description: String,
@@ -50,6 +59,7 @@ struct AddTaskRequest {
 struct TaskItem {
     description: String,
     id: Option<u64>,
+    uuid: Option<String>,
     project: Option<String>,
     due: Option<String>,
     uri: Option<String>,
@@ -60,6 +70,7 @@ struct TaskItem {
 struct TaskExportItem {
     description: String,
     id: Option<u64>,
+    uuid: Option<String>,
     project: Option<String>,
     due: Option<String>,
     uri: Option<String>,
@@ -69,6 +80,30 @@ struct TaskExportItem {
 #[derive(Serialize)]
 struct ErrorBody {
     error: String,
+}
+
+#[derive(Deserialize)]
+struct WorkflowSessionRequest {
+    session: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct WorkflowSessionResponse {
+    user: String,
+    session: Option<serde_json::Value>,
+    updated_at: Option<u64>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+struct WorkflowStore {
+    version: u8,
+    users: HashMap<String, StoredWorkflowSession>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct StoredWorkflowSession {
+    updated_at: u64,
+    session: serde_json::Value,
 }
 
 #[derive(Debug)]
@@ -108,12 +143,21 @@ pub async fn main() -> Result<()> {
 
 /// Builds the axum router
 pub fn app(task: TaskConfig) -> Router {
-    let state = AppState { task };
+    let state = AppState {
+        task,
+        workflow: WorkflowConfig::from_env(),
+    };
 
     Router::new()
         .route("/health", get(health))
         .route("/api/tasks", get(tasks).post(add_task))
         .route("/api/tasks/:id/complete", post(complete_task))
+        .route(
+            "/api/workflow-session",
+            get(workflow_session)
+                .put(save_workflow_session)
+                .delete(clear_workflow_session),
+        )
         .nest_service(
             "/",
             ServeDir::new("public").append_index_html_on_directories(true),
@@ -152,6 +196,30 @@ impl TaskConfig {
             lock_path,
             sync,
             timeout: Duration::from_secs(timeout_secs),
+        }
+    }
+}
+
+impl WorkflowConfig {
+    fn from_env() -> Self {
+        let path = env::var_os("DOIT_SESSION_FILE")
+            .map(PathBuf::from)
+            .or_else(|| {
+                env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .map(|home| home.join(".local/share/doit/session.json"))
+            })
+            .unwrap_or_else(|| PathBuf::from("/root/.local/share/doit/session.json"));
+        let lock_path = env::var_os("DOIT_SESSION_LOCK")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| path.with_extension("lock"));
+        let default_user = env::var("DOIT_DEFAULT_USER_EMAIL")
+            .unwrap_or_else(|_| "portalier.g@gmail.com".to_string());
+
+        Self {
+            path,
+            lock_path,
+            default_user,
         }
     }
 }
@@ -226,6 +294,65 @@ async fn complete_task(
     .await
 }
 
+async fn workflow_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<WorkflowSessionResponse>, AppError> {
+    let user = workflow_user(&headers, &state.workflow);
+    with_workflow_lock(&state.workflow, || {
+        let store = read_workflow_store(&state.workflow)?;
+        let session = store.users.get(&user).cloned();
+        Ok(Json(WorkflowSessionResponse {
+            user,
+            session: session.as_ref().map(|stored| stored.session.clone()),
+            updated_at: session.map(|stored| stored.updated_at),
+        }))
+    })
+}
+
+async fn save_workflow_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<WorkflowSessionRequest>,
+) -> Result<Json<WorkflowSessionResponse>, AppError> {
+    let user = workflow_user(&headers, &state.workflow);
+    with_workflow_lock(&state.workflow, || {
+        let mut store = read_workflow_store(&state.workflow)?;
+        let updated_at = unix_timestamp();
+        store.users.insert(
+            user.clone(),
+            StoredWorkflowSession {
+                updated_at,
+                session: payload.session,
+            },
+        );
+        write_workflow_store(&state.workflow, &store)?;
+        let session = store.users.get(&user).map(|stored| stored.session.clone());
+        Ok(Json(WorkflowSessionResponse {
+            user,
+            session,
+            updated_at: Some(updated_at),
+        }))
+    })
+}
+
+async fn clear_workflow_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<WorkflowSessionResponse>, AppError> {
+    let user = workflow_user(&headers, &state.workflow);
+    with_workflow_lock(&state.workflow, || {
+        let mut store = read_workflow_store(&state.workflow)?;
+        store.users.remove(&user);
+        write_workflow_store(&state.workflow, &store)?;
+        Ok(Json(WorkflowSessionResponse {
+            user,
+            session: None,
+            updated_at: None,
+        }))
+    })
+}
+
 async fn sync_tasks(config: &TaskConfig) -> Result<(), AppError> {
     if !config.sync {
         return Ok(());
@@ -251,6 +378,7 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
             TaskItem {
                 description,
                 id: task.id,
+                uuid: task.uuid,
                 project: task.project,
                 due: task.due,
                 uri,
@@ -287,6 +415,107 @@ fn task_description_and_uri(description: String, uri: Option<String>) -> (String
 
     let description = parts.next().unwrap_or("").trim_start().to_string();
     (description, Some(uri.to_string()))
+}
+
+fn workflow_user(headers: &HeaderMap, config: &WorkflowConfig) -> String {
+    for header in [
+        "cf-access-authenticated-user-email",
+        "x-authenticated-user-email",
+        "x-forwarded-email",
+    ] {
+        let Some(value) = headers.get(header).and_then(|value| value.to_str().ok()) else {
+            continue;
+        };
+        let email = value.trim();
+        if !email.is_empty() {
+            return email.to_ascii_lowercase();
+        }
+    }
+
+    config.default_user.trim().to_ascii_lowercase()
+}
+
+fn empty_workflow_store() -> WorkflowStore {
+    WorkflowStore {
+        version: 1,
+        users: HashMap::new(),
+    }
+}
+
+fn read_workflow_store(config: &WorkflowConfig) -> Result<WorkflowStore, AppError> {
+    let Ok(contents) = fs::read_to_string(&config.path) else {
+        return Ok(empty_workflow_store());
+    };
+    if contents.trim().is_empty() {
+        return Ok(empty_workflow_store());
+    }
+
+    let mut store = match serde_json::from_str::<WorkflowStore>(&contents) {
+        Ok(store) => store,
+        Err(_) => {
+            let store = empty_workflow_store();
+            write_workflow_store(config, &store)?;
+            return Ok(store);
+        }
+    };
+    if store.version != 1 {
+        store = empty_workflow_store();
+        write_workflow_store(config, &store)?;
+    }
+    Ok(store)
+}
+
+fn write_workflow_store(config: &WorkflowConfig, store: &WorkflowStore) -> Result<(), AppError> {
+    if let Some(parent) = config.path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            AppError::internal(format!("failed to create workflow state directory: {err}"))
+        })?;
+    }
+
+    let bytes = serde_json::to_vec_pretty(store)
+        .map_err(|err| AppError::internal(format!("failed to serialize workflow state: {err}")))?;
+    let temp_path = config.path.with_extension("tmp");
+    fs::write(&temp_path, bytes)
+        .map_err(|err| AppError::internal(format!("failed to write workflow state: {err}")))?;
+    fs::rename(&temp_path, &config.path)
+        .map_err(|err| AppError::internal(format!("failed to save workflow state: {err}")))
+}
+
+fn with_workflow_lock<F, T>(config: &WorkflowConfig, work: F) -> Result<T, AppError>
+where
+    F: FnOnce() -> Result<T, AppError>,
+{
+    if let Some(parent) = config.lock_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            AppError::internal(format!("failed to create workflow lock directory: {err}"))
+        })?;
+    }
+
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&config.lock_path)
+        .map_err(|err| AppError::internal(format!("failed to open workflow lock: {err}")))?;
+    file.lock_exclusive()
+        .map_err(|err| AppError::internal(format!("failed to lock workflow state: {err}")))?;
+
+    let result = work();
+    let unlock_result = file.unlock();
+    if let Err(err) = unlock_result {
+        return Err(AppError::internal(format!(
+            "failed to unlock workflow state: {err}"
+        )));
+    }
+
+    result
+}
+
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }
 
 async fn with_task_lock<F, Fut, T>(config: &TaskConfig, work: F) -> Result<T, AppError>
@@ -479,6 +708,72 @@ mod tests {
             Some(PathBuf::from("/home/alice"))
         );
         assert_eq!(taskrc_home(std::path::Path::new(".dev/taskrc")), None);
+    }
+
+    #[test]
+    fn workflow_user_uses_access_header_or_default_user() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let config = WorkflowConfig {
+            path: directory.path().join("session.json"),
+            lock_path: directory.path().join("session.lock"),
+            default_user: "Portalier.G@Gmail.Com".to_string(),
+        };
+        let mut headers = HeaderMap::new();
+
+        assert_eq!(workflow_user(&headers, &config), "portalier.g@gmail.com");
+
+        headers.insert(
+            "cf-access-authenticated-user-email",
+            "Someone@Example.COM".parse().expect("header value"),
+        );
+
+        assert_eq!(workflow_user(&headers, &config), "someone@example.com");
+    }
+
+    #[test]
+    fn workflow_store_resets_invalid_json() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let config = WorkflowConfig {
+            path: directory.path().join("session.json"),
+            lock_path: directory.path().join("session.lock"),
+            default_user: "portalier.g@gmail.com".to_string(),
+        };
+        fs::write(&config.path, "not json").expect("write invalid state");
+
+        let store = with_workflow_lock(&config, || read_workflow_store(&config))
+            .expect("read resets state");
+
+        assert_eq!(store.version, 1);
+        assert!(store.users.is_empty());
+        let contents = fs::read_to_string(&config.path).expect("state exists");
+        assert!(contents.contains("\"users\": {}"));
+    }
+
+    #[test]
+    fn workflow_store_round_trips_session_json() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let config = WorkflowConfig {
+            path: directory.path().join("session.json"),
+            lock_path: directory.path().join("session.lock"),
+            default_user: "portalier.g@gmail.com".to_string(),
+        };
+        let mut store = empty_workflow_store();
+        store.users.insert(
+            "portalier.g@gmail.com".to_string(),
+            StoredWorkflowSession {
+                updated_at: 10,
+                session: serde_json::json!({ "mode": "scanning" }),
+            },
+        );
+
+        with_workflow_lock(&config, || write_workflow_store(&config, &store)).expect("write state");
+        let stored =
+            with_workflow_lock(&config, || read_workflow_store(&config)).expect("read state");
+
+        assert_eq!(
+            stored.users["portalier.g@gmail.com"].session["mode"],
+            "scanning"
+        );
     }
 
     #[test]

@@ -7,7 +7,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <link rel="stylesheet" href="/style.css?v=20260603-uri-ellipsis">
+    <link rel="stylesheet" href="/style.css?v=20260604-no-card-flash-2">
   </head>
   <body>
     <main class="shell">
@@ -16,7 +16,7 @@
           <span></span>
         </div>
         <div>
-          <p class="eyebrow">TaskChampion deck</p>
+          <p class="eyebrow">Closed-list deck</p>
           <h1>Doit</h1>
         </div>
         <div class="champ" aria-hidden="true">
@@ -28,7 +28,7 @@
       </header>
 
       <form id="task-form" class="add-form">
-        <label for="description">New inbox task</label>
+        <label for="description">Capture for tomorrow</label>
         <div class="add-row">
           <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Add a tiny mission">
           <button id="submit" type="submit">Add</button>
@@ -39,14 +39,25 @@
         <input id="uri-field" class="uri-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com" hidden>
       </form>
 
-      <section class="toolbar" aria-live="polite">
+      <section class="toolbar">
         <button id="refresh" type="button">Refresh</button>
-        <p id="status">Loading tasks...</p>
+        <button id="session" type="button">Start</button>
+        <p id="status" hidden></p>
       </section>
 
+      <section class="list-header">
+        <h2>To-do list</h2>
+        <p id="list-caption">Ready to start</p>
+      </section>
       <ul id="tasks" class="tasks"></ul>
+
+      <section class="list-header tomorrow-header">
+        <h2>Future tasks</h2>
+        <p id="tomorrow-status">0 future</p>
+      </section>
+      <ul id="tomorrow-tasks" class="tasks tomorrow-tasks"></ul>
     </main>
 
-    <script src="/app.js?v=20260603-uri-tooltip"></script>
+    <script src="/app.js?v=20260604-no-card-flash-2"></script>
   </body>
 </html>
