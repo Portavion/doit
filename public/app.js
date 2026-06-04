@@ -1210,6 +1210,8 @@ refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
+tomorrowList.addEventListener("click", handleTaskClick);
+tomorrowList.addEventListener("pointerdown", handleTaskPointerdown);
 
 async function initApp() {
   input.focus();
