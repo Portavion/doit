@@ -356,12 +356,6 @@ function readdedEntry(entry) {
   };
 }
 
-function urgentEntryFromTask(task) {
-  const entry = entryFromTask(task, `${taskKey(task)}:urgent:${Date.now()}`);
-  entry.urgent = true;
-  return entry;
-}
-
 function variantIndex(key, count) {
   let hash = 0;
   for (let index = 0; index < key.length; index += 1) {
@@ -717,27 +711,6 @@ function startAgain(key) {
   saveSession();
   showStatus("Moved to end");
   renderApp({ animated: true, focusKey: activeRunKeys()[0] || "" });
-}
-
-function appendUrgentTasks(tasks) {
-  if (!hasSession() || tasks.length === 0) {
-    return "";
-  }
-
-  let focusKey = "";
-  for (const task of tasks) {
-    const entry = urgentEntryFromTask(task);
-    session.entries.push(entry);
-    focusKey = entry.key;
-    if (scanActive()) {
-      session.scanMarkedKeys.push(entry.key);
-    } else {
-      session.runKeys = [entry.key, ...session.runKeys];
-    }
-  }
-  compactSession();
-  saveSession();
-  return focusKey;
 }
 
 function renderApp({ animated = false, focusKey = "" } = {}) {
@@ -1108,26 +1081,22 @@ async function addTask(event) {
   if (uri !== "") {
     body.uri = uri;
   }
-  const previousKeys = new Set(latestTasks.map((task) => taskKey(task)));
   try {
     const response = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const nextTasks = normalizeTasks(await parseResponse(response));
-    const addedTasks = nextTasks.filter((task) => !previousKeys.has(taskKey(task)));
-    latestTasks = nextTasks;
+    latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
-    const focusKey = appendUrgentTasks(addedTasks);
     if (reconcileSession(latestTasks)) {
       saveSession();
     }
     input.value = "";
     uriInput.value = "";
     hideUriField();
-    showStatus(focusKey === "" ? "Added for tomorrow" : "Added with a dot");
-    renderApp({ animated: true, focusKey });
+    showStatus("Added for tomorrow");
+    renderApp({ animated: true });
   } catch (error) {
     showStatus(error.message);
   } finally {
