@@ -209,7 +209,7 @@ input {
 }
 
 .settings-menu p {
-  margin: 0 0 8px;
+  margin: 10px 0 8px;
   color: var(--muted);
   font-size: 12px;
   text-transform: uppercase;
@@ -230,6 +230,19 @@ input {
   border: 0;
   padding: 0;
   accent-color: var(--pink);
+}
+
+.settings-action {
+  display: block;
+  width: max-content;
+  margin: 0 auto;
+  padding: 7px 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  box-shadow: none;
 }
 
 .eyebrow {
@@ -741,6 +754,11 @@ button:disabled {
     background: var(--button-hover);
     box-shadow: 5px 5px 0 var(--stroke);
     transform: translate(-1px, -1px);
+  }
+
+  .settings-action:not(:disabled):hover {
+    background: var(--button-hover);
+    color: var(--button-text);
   }
 
   #session.session-start:not(:disabled):hover {

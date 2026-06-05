@@ -5,6 +5,7 @@ const uriInput = document.querySelector("#uri-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const sessionButton = document.querySelector("#session");
+const resetCacheButton = document.querySelector("#reset-cache");
 const settingsToggle = document.querySelector("#settings-toggle");
 const settingsMenu = document.querySelector("#settings-menu");
 const statusText = document.querySelector("#status");
@@ -275,6 +276,14 @@ function loadTaskCache() {
 
 function saveTaskCache(tasks) {
   writeStoredJson(taskCacheStorageKey, tasks);
+}
+
+function clearTaskCache() {
+  try {
+    localStorage.removeItem(taskCacheStorageKey);
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
 }
 
 function normalizeTasks(tasks) {
@@ -1473,6 +1482,18 @@ function handleSettingsChange(event) {
   saveColorscheme(event.target.value);
 }
 
+async function resetCache() {
+  latestTasks = [];
+  session = defaultSession();
+  lastTouchedKey = "";
+  clearTaskCache();
+  clearLegacySession();
+  await clearWorkflowSession();
+  closeSettings();
+  renderApp({ animated: true });
+  await loadTasks();
+}
+
 function handleDocumentClick(event) {
   if (settingsMenu.hidden || event.target.closest(".settings")) {
     return;
@@ -1561,6 +1582,7 @@ form.addEventListener("submit", addTask);
 uriToggle.addEventListener("click", toggleUriField);
 refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
+resetCacheButton.addEventListener("click", resetCache);
 settingsToggle.addEventListener("click", toggleSettings);
 settingsMenu.addEventListener("change", handleSettingsChange);
 document.addEventListener("click", handleDocumentClick);
