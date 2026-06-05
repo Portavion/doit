@@ -1314,7 +1314,7 @@ async function completeTaskByKey(key) {
   const previousTasks = latestTasks;
   const previousSession = normalizeSession(session);
   const sessionEntry = entryByKey(key);
-  const nextFocusKey = activeRunKeys().find((runKey) => runKey !== key) || "";
+  let nextFocusKey = activeRunKeys().find((runKey) => runKey !== key) || "";
   completingTaskKey = key;
   markCompletingCard(key);
   await nextFrame();
@@ -1329,10 +1329,28 @@ async function completeTaskByKey(key) {
       saveSession();
     }
     if (runFinished) {
-      completedSession = true;
-      session = defaultSession();
-      lastTouchedKey = "";
-      clearLegacySession();
+      const entries = openEntries();
+      if (entries.length === 0) {
+        completedSession = true;
+        session = defaultSession();
+        lastTouchedKey = "";
+        clearLegacySession();
+      } else if (entries.length === 1) {
+        session.runKeys = [entries[0].key];
+        session.scanMarkedKeys = [];
+        session.scanCursorKey = "";
+        nextFocusKey = entries[0].key;
+        saveSession();
+      } else {
+        for (const entry of entries) {
+          entry.waiting = false;
+        }
+        session.scanMarkedKeys = [entries[0].key];
+        session.scanCursorKey = entries[1].key;
+        session.runKeys = [];
+        nextFocusKey = session.scanCursorKey;
+        saveSession();
+      }
     }
   } else if (hasSession() && reconcileSession(latestTasks)) {
     saveSession();
@@ -1356,7 +1374,7 @@ async function completeTaskByKey(key) {
     }
     completingTaskKey = null;
     showStatus(completedSession ? "FPV session complete" : "Completed");
-    renderApp({ animated: true, focusKey: activeRunKeys()[0] || "" });
+    renderApp({ animated: true, focusKey: activeRunKeys()[0] || nextFocusKey });
   } catch (error) {
     latestTasks = previousTasks;
     session = previousSession;
