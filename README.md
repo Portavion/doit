@@ -40,6 +40,14 @@ If `.dev/taskrc` does not exist, the development commands create it from `.dev/t
 
 Open `http://127.0.0.1:3000`.
 
+Seed the local Taskwarrior profile with realistic software engineering tasks:
+
+```sh
+just seed
+```
+
+The seed command replaces the local `.dev/task` data with a fresh seeded profile. The seed data is tagged with `+doit_seed` and includes varied due dates, projects, tags, URIs, priorities, waiting tasks, overdue tasks, and annotations.
+
 ## Commands
 
 ```sh

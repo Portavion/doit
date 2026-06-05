@@ -9,6 +9,12 @@ dev:
     test -f .dev/taskrc || cp .dev/taskrc.example .dev/taskrc
     cargo run
 
+seed:
+    scripts/seed-dev-tasks.sh
+
+reset-seed:
+    scripts/seed-dev-tasks.sh
+
 fmt:
     cargo fmt --all
 
