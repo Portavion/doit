@@ -839,13 +839,15 @@ function renderTasks({ animated = false } = {}) {
   compactSession();
   if (scanActive()) {
     const items = [];
-    listCaption.textContent = "Scanning top to bottom";
+    let taskCount = 0;
     session.entries.forEach((entry, index) => {
       if (isCrossed(entry.key)) {
         return;
       }
+      taskCount += 1;
       pushTaskItem(items, entry, { index, sessionTask: true });
     });
+    listCaption.textContent = `${taskCount} task${taskCount === 1 ? "" : "s"}`;
     renderKeyedList(list, items, animated);
     return;
   }
@@ -857,8 +859,9 @@ function renderTasks({ animated = false } = {}) {
 
   const entries = openEntries();
   const items = [];
-  listCaption.textContent =
-    entries.length === 0 ? "Session clear" : "Ready for the next pass";
+  listCaption.textContent = `${entries.length} task${
+    entries.length === 1 ? "" : "s"
+  }`;
   if (entries.length === 0) {
     items.push(emptyListItem("today-empty", "No open session tasks"));
     renderKeyedList(list, items, animated);
@@ -873,7 +876,9 @@ function renderTasks({ animated = false } = {}) {
 function renderReadyTasks({ animated = false } = {}) {
   const tasks = todayWorkTasks(latestTasks);
   const items = [];
-  listCaption.textContent = "Ready to start";
+  listCaption.textContent = `${tasks.length} task${
+    tasks.length === 1 ? "" : "s"
+  }`;
   if (tasks.length === 0) {
     items.push(emptyListItem("today-empty", "Nothing due today"));
     renderKeyedList(list, items, animated);
@@ -886,12 +891,13 @@ function renderReadyTasks({ animated = false } = {}) {
 }
 
 function renderRunTasks({ animated = false } = {}) {
-  const runKeySet = new Set(session.runKeys);
+  const runKeys = activeRunKeys();
+  const runKeySet = new Set(runKeys);
   const items = [];
   let hiddenCount = 0;
-  listCaption.textContent = activeRunKeys().length > 0
-    ? "Dotted tasks only"
-    : "Dotted chain clear";
+  listCaption.textContent = `${runKeys.length} task${
+    runKeys.length === 1 ? "" : "s"
+  }`;
 
   session.entries.forEach((entry, index) => {
     if (isCrossed(entry.key)) {
