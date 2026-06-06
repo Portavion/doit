@@ -1361,7 +1361,6 @@ function patchAnnotationItem(annotationItem, entry) {
   form.addEventListener("submit", (event) => addAnnotation(event, entry));
 
   input.name = "annotation";
-  input.maxLength = 500;
   input.autocomplete = "off";
   input.placeholder = "Add annotation";
 

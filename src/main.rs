@@ -24,7 +24,6 @@ use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const MAX_DESCRIPTION_LEN: usize = 500;
-const MAX_ANNOTATION_LEN: usize = 500;
 
 #[derive(Clone)]
 struct AppState {
@@ -320,10 +319,6 @@ async fn add_annotation(
     if annotation.is_empty() {
         return Err(AppError::bad_request("annotation cannot be empty"));
     }
-    if annotation.chars().count() > MAX_ANNOTATION_LEN {
-        return Err(AppError::bad_request("annotation is too long"));
-    }
-
     with_task_lock(&state.task, || async {
         let output = run_task(
             &state.task,
