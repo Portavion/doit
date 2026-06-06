@@ -23,6 +23,7 @@ let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
 let session = defaultSession();
+const openAnnotationKeys = new Set();
 
 const colorschemes = ["default", "everforest", "gruvbox", "rose-pine"];
 
@@ -158,6 +159,7 @@ function normalizeEntry(entry) {
     due: typeof entry.due === "string" ? entry.due : null,
     dueDay: typeof entry.dueDay === "string" ? entry.dueDay : "",
     uri: typeof entry.uri === "string" ? entry.uri : "",
+    annotations: normalizeAnnotations(entry.annotations),
     fingerprint:
       typeof entry.fingerprint === "string" ? entry.fingerprint : "",
     readded: Boolean(entry.readded),
@@ -331,6 +333,29 @@ function normalizeTasks(tasks) {
     .filter((task) => task && taskDescription(task) !== "");
 }
 
+function normalizeAnnotations(annotations) {
+  if (!Array.isArray(annotations)) {
+    return [];
+  }
+
+  return annotations
+    .filter((annotation) => {
+      return (
+        annotation &&
+        typeof annotation === "object" &&
+        typeof annotation.description === "string" &&
+        annotation.description.trim() !== ""
+      );
+    })
+    .map((annotation) => {
+      return {
+        entry: typeof annotation.entry === "string" ? annotation.entry : "",
+        description: annotation.description.trim(),
+      };
+    })
+    .sort((first, second) => first.entry.localeCompare(second.entry));
+}
+
 function dueDateKey(task) {
   if (typeof task?.due !== "string") {
     return "";
@@ -413,6 +438,7 @@ function entryFromTask(task, key = taskKey(task)) {
     due: typeof task?.due === "string" ? task.due : null,
     dueDay: dueDateKey(task),
     uri: taskUri(task),
+    annotations: normalizeAnnotations(task?.annotations),
     fingerprint: taskFingerprint(task),
     readded: false,
     urgent: false,
@@ -619,9 +645,12 @@ function reconcileSession(tasks) {
       "due",
       "dueDay",
       "uri",
+      "annotations",
       "fingerprint",
     ]) {
-      if (entry[field] !== next[field]) {
+      const current = field === "annotations" ? JSON.stringify(entry[field]) : entry[field];
+      const value = field === "annotations" ? JSON.stringify(next[field]) : next[field];
+      if (current !== value) {
         entry[field] = next[field];
         changed = true;
       }
@@ -982,6 +1011,9 @@ function pushTaskItem(items, entry, options = {}) {
   const isCandidate =
     Boolean(options.sessionTask) && candidate?.key === entry.key;
   items.push(taskListItem(entry, options));
+  if (openAnnotationKeys.has(entry.taskKey)) {
+    items.push(annotationListItem(entry));
+  }
   if (isCandidate || isCurrent) {
     items.push(actionListItem(entry, { isCandidate, isCurrent }));
   }
@@ -1002,6 +1034,14 @@ function actionListItem(entry, state) {
     type: "action",
     entry,
     state,
+  };
+}
+
+function annotationListItem(entry) {
+  return {
+    key: `annotation:${entry.taskKey || entry.key}`,
+    type: "annotation",
+    entry,
   };
 }
 
@@ -1075,6 +1115,10 @@ function patchListNode(node, item) {
   }
   if (item.type === "action") {
     patchActionItem(node, item.entry, item.state);
+    return;
+  }
+  if (item.type === "annotation") {
+    patchAnnotationItem(node, item.entry);
     return;
   }
   if (item.type === "hidden") {
@@ -1210,8 +1254,10 @@ function patchTaskItem(item, entry, options = {}) {
   const contentKey = JSON.stringify([
     description,
     entry.uri,
+    entry.annotations,
     spriteClassName,
     canQuickComplete,
+    openAnnotationKeys.has(entry.taskKey),
   ]);
 
   item.className = "task-item";
@@ -1250,8 +1296,34 @@ function patchTaskItem(item, entry, options = {}) {
   dot.className = "task-dot";
   dot.setAttribute("aria-hidden", "true");
   sprite.className = spriteClassName;
+  sprite.classList.add("annotation-character");
+  sprite.classList.toggle("has-annotations", entry.annotations.length > 0);
+  sprite.tabIndex = 0;
+  sprite.setAttribute("role", "button");
+  sprite.setAttribute(
+    "aria-label",
+    `${openAnnotationKeys.has(entry.taskKey) ? "Hide" : "Show"} annotations (${entry.annotations.length})`,
+  );
+  sprite.setAttribute(
+    "aria-expanded",
+    String(openAnnotationKeys.has(entry.taskKey)),
+  );
+  sprite.addEventListener("click", () => toggleAnnotationDrawer(entry.taskKey));
+  sprite.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    toggleAnnotationDrawer(entry.taskKey);
+  });
   sprite.append(document.createElement("i"), document.createElement("b"));
   sprite.append(document.createElement("em"));
+  if (entry.annotations.length > 0) {
+    const badge = document.createElement("span");
+    badge.className = "annotation-badge";
+    badge.setAttribute("aria-hidden", "true");
+    sprite.append(badge);
+  }
 
   content.className = "task-content";
   title.className = "task-title";
@@ -1273,6 +1345,72 @@ function patchTaskItem(item, entry, options = {}) {
   if (canQuickComplete) {
     item.append(completeButton(entry, completingTaskKey === entry.key));
   }
+}
+
+function patchAnnotationItem(annotationItem, entry) {
+  const panel = document.createElement("div");
+  const form = document.createElement("form");
+  const input = document.createElement("input");
+  const add = document.createElement("button");
+  const list = document.createElement("ul");
+
+  annotationItem.className = "annotation-row";
+  annotationItem.textContent = "";
+  panel.className = "annotation-panel";
+  form.className = "annotation-form";
+  form.addEventListener("submit", (event) => addAnnotation(event, entry));
+
+  input.name = "annotation";
+  input.maxLength = 500;
+  input.autocomplete = "off";
+  input.placeholder = "Add annotation";
+
+  add.type = "submit";
+  add.textContent = "Add";
+  add.disabled = entry.id === null;
+
+  form.append(input, add);
+  list.className = "annotation-list";
+  for (const annotation of entry.annotations) {
+    const item = document.createElement("li");
+    item.textContent = annotation.description;
+    list.append(item);
+  }
+
+  panel.append(form, list);
+  annotationItem.append(panel);
+}
+
+function toggleAnnotationDrawer(taskKey) {
+  if (openAnnotationKeys.has(taskKey)) {
+    openAnnotationKeys.delete(taskKey);
+  } else {
+    openAnnotationKeys.add(taskKey);
+  }
+  renderApp({ animated: true });
+  shakeAnnotationCharacter(taskKey);
+}
+
+function shakeAnnotationCharacter(taskKey) {
+  if (reducedMotion.matches) {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    const item = taskNodeByKey(taskKey);
+    const character = item?.querySelector(".annotation-character");
+    if (!character) {
+      return;
+    }
+    character.classList.remove("character-shaking");
+    void character.offsetWidth;
+    character.classList.add("character-shaking");
+    character.addEventListener(
+      "animationend",
+      () => character.classList.remove("character-shaking"),
+      { once: true },
+    );
+  });
 }
 
 function patchActionItem(actionItem, entry, state) {
@@ -1412,6 +1550,41 @@ async function completeTaskByKey(key) {
     completingTaskKey = null;
     showStatus(error.message);
     renderApp({ animated: true, focusKey: key });
+  }
+}
+
+async function addAnnotation(event, entry) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = form.elements.annotation;
+  const annotation = input.value.trim();
+  if (annotation === "" || entry.id === null) {
+    return;
+  }
+
+  const button = form.querySelector("button");
+  button.disabled = true;
+  showStatus("Annotating...");
+  try {
+    const response = await fetch(`/api/tasks/${entry.id}/annotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ annotation }),
+    });
+    latestTasks = normalizeTasks(await parseResponse(response));
+    saveTaskCache(latestTasks);
+    if (reconcileSession(latestTasks)) {
+      saveSession();
+    }
+    input.value = "";
+    openAnnotationKeys.add(entry.taskKey);
+    showStatus("Annotated");
+    renderApp({ animated: true, focusKey: entry.key });
+  } catch (error) {
+    showStatus(error.message);
+  } finally {
+    button.disabled = false;
+    input.focus();
   }
 }
 
@@ -1570,6 +1743,7 @@ function handleTaskPointerdown(event) {
   if (
     !item ||
     event.target.closest(".complete-button") ||
+    event.target.closest(".annotation-character") ||
     event.target.closest("a") ||
     !coarsePointer.matches ||
     event.pointerType === "mouse"

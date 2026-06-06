@@ -24,6 +24,7 @@ use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const MAX_DESCRIPTION_LEN: usize = 500;
+const MAX_ANNOTATION_LEN: usize = 500;
 
 #[derive(Clone)]
 struct AppState {
@@ -55,6 +56,11 @@ struct AddTaskRequest {
     uri: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct AddAnnotationRequest {
+    annotation: String,
+}
+
 #[derive(Serialize)]
 struct TaskItem {
     description: String,
@@ -64,6 +70,7 @@ struct TaskItem {
     due: Option<String>,
     uri: Option<String>,
     urg: Option<f64>,
+    annotations: Vec<TaskAnnotation>,
 }
 
 #[derive(Deserialize)]
@@ -75,6 +82,14 @@ struct TaskExportItem {
     due: Option<String>,
     uri: Option<String>,
     urgency: Option<f64>,
+    #[serde(default)]
+    annotations: Vec<TaskAnnotation>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct TaskAnnotation {
+    entry: String,
+    description: String,
 }
 
 #[derive(Serialize)]
@@ -152,6 +167,7 @@ pub fn app(task: TaskConfig) -> Router {
         .route("/health", get(health))
         .route("/api/tasks", get(tasks).post(add_task))
         .route("/api/tasks/:id/complete", post(complete_task))
+        .route("/api/tasks/:id/annotations", post(add_annotation))
         .route(
             "/api/workflow-session",
             get(workflow_session)
@@ -294,6 +310,40 @@ async fn complete_task(
     .await
 }
 
+/// Adds an annotation to a pending task, syncs Taskwarrior, and returns the updated list
+async fn add_annotation(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Json(payload): Json<AddAnnotationRequest>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    let annotation = payload.annotation.trim();
+    if annotation.is_empty() {
+        return Err(AppError::bad_request("annotation cannot be empty"));
+    }
+    if annotation.chars().count() > MAX_ANNOTATION_LEN {
+        return Err(AppError::bad_request("annotation is too long"));
+    }
+
+    with_task_lock(&state.task, || async {
+        let output = run_task(
+            &state.task,
+            [
+                id.to_string(),
+                "annotate".to_string(),
+                "--".to_string(),
+                annotation.to_string(),
+            ],
+        )
+        .await?;
+        ensure_success("task annotate", output.status, &output.stderr)?;
+
+        sync_tasks(&state.task).await?;
+
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
+}
+
 async fn workflow_session(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -375,6 +425,8 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
         .filter(|task| !task.description.trim().is_empty())
         .map(|task| {
             let (description, uri) = task_description_and_uri(task.description, task.uri);
+            let mut annotations = task.annotations;
+            annotations.sort_by(|a, b| a.entry.cmp(&b.entry));
             TaskItem {
                 description,
                 id: task.id,
@@ -383,6 +435,7 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
                 due: task.due,
                 uri,
                 urg: task.urgency,
+                annotations,
             }
         })
         .collect();
