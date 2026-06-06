@@ -577,22 +577,30 @@ where
     Fut: std::future::Future<Output = Result<T, AppError>>,
 {
     let lock_path = config.lock_path.clone();
-    if let Some(parent) = lock_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|err| AppError::internal(format!("failed to create lock directory: {err}")))?;
-    }
+    let file = tokio::task::spawn_blocking(move || {
+        if let Some(parent) = lock_path.parent() {
+            fs::create_dir_all(parent).map_err(|err| {
+                AppError::internal(format!("failed to create lock directory: {err}"))
+            })?;
+        }
 
-    let file = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(&lock_path)
-        .map_err(|err| AppError::internal(format!("failed to open task lock: {err}")))?;
-    file.lock_exclusive()
-        .map_err(|err| AppError::internal(format!("failed to lock task data: {err}")))?;
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&lock_path)
+            .map_err(|err| AppError::internal(format!("failed to open task lock: {err}")))?;
+        file.lock_exclusive()
+            .map_err(|err| AppError::internal(format!("failed to lock task data: {err}")))?;
+        Ok(file)
+    })
+    .await
+    .map_err(|err| AppError::internal(format!("failed to join task lock worker: {err}")))??;
 
     let result = work().await;
-    let unlock_result = file.unlock();
+    let unlock_result = tokio::task::spawn_blocking(move || file.unlock())
+        .await
+        .map_err(|err| AppError::internal(format!("failed to join task unlock worker: {err}")))?;
     if let Err(err) = unlock_result {
         return Err(AppError::internal(format!(
             "failed to unlock task data: {err}"
