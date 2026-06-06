@@ -227,7 +227,7 @@ function resetSessionAfterIssue(message = "Workflow session reset") {
 
 async function loadWorkflowSession() {
   try {
-    const response = await fetch("/api/workflow-session");
+    const response = await fetch("/api/workflow-session", { cache: "no-store" });
     const body = await parseResponse(response);
     clearLegacySession();
     session = normalizeSession(body.session);
@@ -284,6 +284,33 @@ function clearTaskCache() {
   } catch {
     showStatus("Browser storage is unavailable");
   }
+}
+
+function clearAppStorage() {
+  try {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith("doit.") && key !== colorschemeStorageKey) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      localStorage.removeItem(key);
+    }
+    sessionStorage.clear();
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
+}
+
+async function clearBrowserCaches() {
+  if (!window.caches) {
+    return;
+  }
+
+  const names = await caches.keys();
+  await Promise.all(names.map((name) => caches.delete(name)));
 }
 
 function normalizeTasks(tasks) {
@@ -1392,7 +1419,7 @@ async function loadTasks() {
   refresh.disabled = true;
   showStatus("Loading tasks...");
   try {
-    const response = await fetch("/api/tasks");
+    const response = await fetch("/api/tasks", { cache: "no-store" });
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
     if (reconcileSession(latestTasks)) {
@@ -1504,8 +1531,8 @@ async function resetCache() {
   latestTasks = [];
   session = defaultSession();
   lastTouchedKey = "";
-  clearTaskCache();
-  clearLegacySession();
+  clearAppStorage();
+  await clearBrowserCaches();
   await clearWorkflowSession();
   closeSettings();
   renderApp({ animated: true });
