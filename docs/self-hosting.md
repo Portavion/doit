@@ -10,6 +10,8 @@ cargo build --release
 
 Copy the release binary and `public/` directory to your deployment path.
 
+When changing `public/app.js` or `public/style.css`, update the matching query string in `public/index.html` before deploying so browsers and proxies fetch the new asset instead of a cached copy.
+
 ## Runtime User
 
 Use an unprivileged user with a dedicated Taskwarrior config and data directory:
