@@ -849,14 +849,18 @@ function scrollToTask(key) {
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      const item = taskNodeByKey(key);
-      if (!item) {
-        return;
-      }
-      item.scrollIntoView({
-        block: "center",
-        behavior: reducedMotion.matches ? "auto" : "smooth",
-      });
+      const scroll = () => {
+        const item = taskNodeByKey(key);
+        if (!item) {
+          return;
+        }
+        item.scrollIntoView({
+          block: "center",
+          behavior: reducedMotion.matches ? "auto" : "smooth",
+        });
+      };
+      scroll();
+      window.setTimeout(scroll, 260);
     });
   });
 }
