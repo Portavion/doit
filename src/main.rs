@@ -60,6 +60,11 @@ struct AddAnnotationRequest {
     annotation: String,
 }
 
+#[derive(Deserialize)]
+struct SplitTaskRequest {
+    descriptions: Vec<String>,
+}
+
 #[derive(Serialize)]
 struct TaskItem {
     description: String,
@@ -167,6 +172,7 @@ pub fn app(task: TaskConfig) -> Router {
         .route("/api/tasks", get(tasks).post(add_task))
         .route("/api/tasks/:id/complete", post(complete_task))
         .route("/api/tasks/:id/annotations", post(add_annotation))
+        .route("/api/tasks/:id/split", post(split_task))
         .route(
             "/api/workflow-session",
             get(workflow_session)
@@ -285,6 +291,92 @@ async fn add_task(
 
         let output = run_task(&state.task, args).await?;
         ensure_success("task add", output.status, &output.stderr)?;
+
+        sync_tasks(&state.task).await?;
+
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
+}
+
+/// Splits a pending task into smaller Inbox tasks, annotates them, and deletes the original
+async fn split_task(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Json(payload): Json<SplitTaskRequest>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    let descriptions = payload
+        .descriptions
+        .iter()
+        .map(|description| description.trim().to_string())
+        .filter(|description| !description.is_empty())
+        .collect::<Vec<_>>();
+    if descriptions.is_empty() {
+        return Err(AppError::bad_request("at least one split task is required"));
+    }
+    if descriptions
+        .iter()
+        .any(|description| description.chars().count() > MAX_DESCRIPTION_LEN)
+    {
+        return Err(AppError::bad_request("description is too long"));
+    }
+
+    with_task_lock(&state.task, || async {
+        let mut tasks = list_tasks(&state.task).await?;
+        let Some(original) = tasks.iter().find(|task| task.id == Some(id)) else {
+            return Err(AppError::not_found("task not found"));
+        };
+        let original_description = format!("Split task from: {}", original.description);
+        let mut known_ids = tasks.iter().filter_map(|task| task.id).collect::<Vec<_>>();
+
+        for description in descriptions {
+            let output = run_task(
+                &state.task,
+                [
+                    "add".to_string(),
+                    "project:Inbox".to_string(),
+                    "due:tomorrow".to_string(),
+                    "--".to_string(),
+                    description.clone(),
+                ],
+            )
+            .await?;
+            ensure_success("task add", output.status, &output.stderr)?;
+
+            tasks = list_tasks(&state.task).await?;
+            let Some(new_id) = tasks
+                .iter()
+                .filter_map(|task| task.id.map(|task_id| (task_id, task)))
+                .find(|(task_id, task)| {
+                    !known_ids.contains(task_id) && task.description == description
+                })
+                .or_else(|| {
+                    tasks
+                        .iter()
+                        .filter_map(|task| task.id.map(|task_id| (task_id, task)))
+                        .find(|(task_id, _)| !known_ids.contains(task_id))
+                })
+                .map(|(task_id, _)| task_id)
+            else {
+                return Err(AppError::internal("failed to find split task"));
+            };
+            known_ids.push(new_id);
+
+            let output = run_task(
+                &state.task,
+                [
+                    new_id.to_string(),
+                    "annotate".to_string(),
+                    "--".to_string(),
+                    original_description.clone(),
+                ],
+            )
+            .await?;
+            ensure_success("task annotate", output.status, &output.stderr)?;
+        }
+
+        let output = run_task(&state.task, [id.to_string(), "delete".to_string()]).await?;
+        ensure_success("task delete", output.status, &output.stderr)?;
 
         sync_tasks(&state.task).await?;
 
@@ -689,6 +781,13 @@ impl AppError {
     fn bad_request(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
+    }
+
+    fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
             message: message.into(),
         }
     }

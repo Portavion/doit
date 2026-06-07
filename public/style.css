@@ -439,6 +439,7 @@ button {
 }
 
 button:disabled {
+  cursor: not-allowed;
   opacity: 0.55;
 }
 
@@ -736,6 +737,57 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.progress-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.split-form {
+  display: grid;
+  gap: 8px;
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.split-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px;
+  gap: 8px;
+}
+
+.split-row:not(.has-add) input {
+  grid-column: 1 / -1;
+}
+
+.split-row input {
+  min-width: 0;
+  padding: 9px 10px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.split-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.split-form button {
+  padding: 8px 10px;
+}
+
+.split-form .split-add {
+  min-width: 46px;
+}
+
 .task-uri {
   display: block;
   justify-self: stretch;
@@ -844,6 +896,7 @@ button:disabled {
   #session:not(:disabled):hover,
   .icon-button:not(:disabled):hover,
   .task-actions button:not(:disabled):hover,
+  .split-form button:not(:disabled):hover,
   .annotation-form button:not(:disabled):hover {
     background: color-mix(in srgb, var(--button-bg) 86%, black);
     box-shadow: 5px 5px 0 var(--stroke);

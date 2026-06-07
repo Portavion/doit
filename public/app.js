@@ -24,6 +24,7 @@ let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
 let session = defaultSession();
 const openAnnotationKeys = new Set();
+const openSplitKeys = new Set();
 
 const colorschemes = ["default", "everforest", "gruvbox", "rose-pine"];
 
@@ -125,6 +126,7 @@ function defaultSession() {
     completedKeys: [],
     startedKeys: [],
     clearedKeys: [],
+    progressKeys: [],
     scanMarkedKeys: [],
     scanCursorKey: "",
     runKeys: [],
@@ -199,6 +201,7 @@ function normalizeSession(value) {
     completedKeys: normalizeKeyList(value.completedKeys),
     startedKeys: normalizeKeyList(value.startedKeys),
     clearedKeys: normalizeKeyList(value.clearedKeys),
+    progressKeys: normalizeKeyList(value.progressKeys),
     scanMarkedKeys: normalizeKeyList(value.scanMarkedKeys),
     scanCursorKey:
       typeof value.scanCursorKey === "string" ? value.scanCursorKey : "",
@@ -589,6 +592,9 @@ function compactSession() {
   session.clearedKeys = uniqueKeys(session.clearedKeys).filter((key) =>
     entryKeys.has(key),
   );
+  session.progressKeys = uniqueKeys(session.progressKeys).filter(
+    (key) => entryKeys.has(key) && !isCrossed(key),
+  );
   session.runKeys = uniqueKeys(session.runKeys).filter((key) => {
     const entry = entryByKey(key);
     return entry && entryKeys.has(key) && !entry.waiting && !isCrossed(key);
@@ -790,9 +796,19 @@ function crossOff(key, bucket) {
   return runFinished;
 }
 
+function hasProgressEvidence(key) {
+  return session.progressKeys.includes(key);
+}
+
+function markProgressEvidence(key) {
+  if (!session.progressKeys.includes(key)) {
+    session.progressKeys.push(key);
+  }
+}
+
 function startAgain(key) {
   const entry = entryByKey(key);
-  if (!entry || isCrossed(key)) {
+  if (!entry || isCrossed(key) || !hasProgressEvidence(key)) {
     return;
   }
 
@@ -1431,13 +1447,91 @@ function patchActionItem(actionItem, entry, state) {
     );
   }
   if (state.isCurrent) {
+    const hasEvidence = hasProgressEvidence(entry.key);
+    const splitButtonLabel = openSplitKeys.has(entry.key)
+      ? "Hide split"
+      : "Split task";
     actions.append(
-      createAction("Made progress", "secondary-action", () =>
-        startAgain(entry.key),
+      createAction(splitButtonLabel, "secondary-action", () =>
+        toggleSplitForm(entry.key),
+      ),
+      createAction(
+        "Made progress",
+        "secondary-action",
+        () => startAgain(entry.key),
+        !hasEvidence,
       ),
     );
+    if (!hasEvidence) {
+      const hint = document.createElement("p");
+      hint.className = "progress-hint";
+      hint.textContent = "Add a note or split this task first";
+      actions.append(hint);
+    }
+    if (openSplitKeys.has(entry.key)) {
+      actions.append(splitForm(entry));
+    }
   }
   actionItem.append(actions);
+}
+
+function toggleSplitForm(key) {
+  if (openSplitKeys.has(key)) {
+    openSplitKeys.delete(key);
+  } else {
+    openSplitKeys.add(key);
+  }
+  renderApp({ animated: true, focusKey: key });
+}
+
+function splitForm(entry) {
+  const form = document.createElement("form");
+  const fields = document.createElement("div");
+  const controls = document.createElement("div");
+  const split = document.createElement("button");
+
+  form.className = "split-form";
+  form.addEventListener("submit", (event) => splitTask(event, entry));
+  fields.className = "split-fields";
+  controls.className = "split-controls";
+
+  split.type = "submit";
+  split.textContent = "split";
+
+  appendSplitInput(fields);
+  controls.append(split);
+  form.append(fields, controls);
+  return form;
+}
+
+function appendSplitInput(fields) {
+  const previousRow = fields.querySelector(".split-row.has-add");
+  const previousAdd = previousRow?.querySelector(".split-add");
+  if (previousRow && previousAdd) {
+    previousAdd.remove();
+    previousRow.classList.remove("has-add");
+  }
+
+  const row = document.createElement("div");
+  const input = document.createElement("input");
+  const add = document.createElement("button");
+
+  row.className = "split-row has-add";
+
+  input.name = "description";
+  input.maxLength = 500;
+  input.autocomplete = "off";
+  input.placeholder = "Smaller task";
+
+  add.type = "button";
+  add.className = "split-add";
+  add.textContent = "+";
+  add.setAttribute("aria-label", "Add another split task");
+  add.addEventListener("click", () => appendSplitInput(fields));
+
+  row.append(input, add);
+  fields.append(row);
+  input.focus();
 }
 
 function isMarked(key) {
@@ -1572,9 +1666,9 @@ async function addAnnotation(event, entry) {
     });
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
-    if (reconcileSession(latestTasks)) {
-      saveSession();
-    }
+    reconcileSession(latestTasks);
+    markProgressEvidence(entry.key);
+    saveSession();
     input.value = "";
     openAnnotationKeys.add(entry.taskKey);
     showStatus("Annotated");
@@ -1584,6 +1678,77 @@ async function addAnnotation(event, entry) {
   } finally {
     button.disabled = false;
     input.focus();
+  }
+}
+
+async function splitTask(event, entry) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const descriptions = Array.from(form.querySelectorAll(".split-fields input"))
+    .map((input) => input.value.trim())
+    .filter((description) => description !== "");
+  if (descriptions.length === 0) {
+    showStatus("Describe at least one smaller task first");
+    return;
+  }
+  if (entry.id === null) {
+    return;
+  }
+
+  for (const control of form.querySelectorAll("input, button")) {
+    control.disabled = true;
+  }
+  showStatus("Splitting task...");
+  try {
+    const response = await fetch(`/api/tasks/${entry.id}/split`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descriptions }),
+    });
+    latestTasks = normalizeTasks(await parseResponse(response));
+    saveTaskCache(latestTasks);
+    let completedSession = false;
+    let nextFocusKey = "";
+    if (hasSession()) {
+      reconcileSession(latestTasks);
+      if (runActive() || scanActive()) {
+        nextFocusKey = activeRunKeys()[0] || session.scanCursorKey;
+        saveSession();
+      } else {
+        const entries = openEntries();
+        if (entries.length === 0) {
+          completedSession = true;
+          session = defaultSession();
+          lastTouchedKey = "";
+          clearLegacySession();
+          void clearWorkflowSession();
+        } else if (entries.length === 1) {
+          session.runKeys = [entries[0].key];
+          session.scanMarkedKeys = [];
+          session.scanCursorKey = "";
+          nextFocusKey = entries[0].key;
+          saveSession();
+        } else {
+          for (const entry of entries) {
+            entry.waiting = false;
+          }
+          session.scanMarkedKeys = [entries[0].key];
+          session.scanCursorKey = entries[1].key;
+          session.runKeys = [];
+          nextFocusKey = session.scanCursorKey;
+          saveSession();
+        }
+      }
+    }
+    openSplitKeys.delete(entry.key);
+    showStatus(completedSession ? "FPV session complete" : "Task split");
+    renderApp({ animated: true, focusKey: nextFocusKey });
+  } catch (error) {
+    showStatus(error.message);
+    for (const control of form.querySelectorAll("input, button")) {
+      control.disabled = false;
+    }
+    form.querySelector("input")?.focus();
   }
 }
 

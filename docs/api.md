@@ -75,6 +75,27 @@ If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
 
 Response: the updated task list.
 
+## Split Task
+
+```http
+POST /api/tasks/:id/split
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "descriptions": ["Draft outline", "Send first question"]
+}
+```
+
+Each description is trimmed and limited to 500 characters. Empty descriptions are ignored, but at least one split task is required.
+
+Doit adds each split as an Inbox task due tomorrow, annotates each split task with `Split task from: <task name>`, then deletes the original task.
+
+Response: the updated task list.
+
 ## Workflow Session
 
 ```http
@@ -105,6 +126,7 @@ Request:
   "session": {
     "date": "2026-06-03",
     "entries": [],
+    "progressKeys": [],
     "scanMarkedKeys": [],
     "scanCursorKey": "",
     "runKeys": []
