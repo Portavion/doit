@@ -402,7 +402,23 @@ input {
   padding: 12px;
   background: var(--surface);
   color: var(--input-text);
+  caret-color: var(--pink);
   border-radius: 0;
+}
+
+input::placeholder {
+  color: var(--muted);
+  opacity: 0.78;
+}
+
+input::selection {
+  background: var(--yellow);
+  color: var(--stroke);
+}
+
+input:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
 }
 
 button {
