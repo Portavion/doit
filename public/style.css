@@ -374,17 +374,17 @@ label {
 }
 
 .command-button {
+  --button-bg: var(--surface);
   min-width: 46px;
   min-height: 28px;
   padding: 4px 9px;
-  background: var(--surface);
   color: var(--muted);
   font-size: 11px;
   box-shadow: 3px 3px 0 var(--stroke);
 }
 
 .command-button.active {
-  background: var(--green);
+  --button-bg: var(--green);
   color: var(--button-text);
 }
 
@@ -406,11 +406,12 @@ input {
 }
 
 button {
+  --button-bg: var(--cyan);
   position: relative;
   overflow: hidden;
   border: 3px solid var(--stroke);
   padding: 10px 12px;
-  background: var(--cyan);
+  background: var(--button-bg);
   color: var(--button-text);
   font-weight: 800;
   border-radius: 0;
@@ -426,11 +427,11 @@ button:disabled {
 }
 
 #session.session-start {
-  background: var(--green);
+  --button-bg: var(--green);
 }
 
 #session.session-stop {
-  background: var(--pink);
+  --button-bg: var(--pink);
 }
 
 .toolbar {
@@ -452,11 +453,11 @@ button:disabled {
 }
 
 .primary-action {
-  background: var(--green);
+  --button-bg: var(--green);
 }
 
 .secondary-action {
-  background: var(--surface);
+  --button-bg: var(--surface);
   color: var(--muted);
 }
 
@@ -733,12 +734,12 @@ button:disabled {
 }
 
 .complete-button {
+  --button-bg: var(--surface);
   grid-column: 4;
   grid-row: 1;
   width: 34px;
   height: 34px;
   padding: 0;
-  background: var(--surface);
   cursor: pointer;
   font-size: 22px;
   line-height: 1;
@@ -819,27 +820,28 @@ button:disabled {
   #refresh:not(:disabled):hover,
   #session:not(:disabled):hover,
   .icon-button:not(:disabled):hover,
-  .task-actions button:not(:disabled):hover {
-    background: var(--button-hover);
+  .task-actions button:not(:disabled):hover,
+  .annotation-form button:not(:disabled):hover {
+    background: color-mix(in srgb, var(--button-bg) 86%, black);
     box-shadow: 5px 5px 0 var(--stroke);
     transform: translate(-1px, -1px);
   }
 
   .settings-action:not(:disabled):hover {
-    background: var(--button-hover);
+    background: color-mix(in srgb, var(--button-bg) 86%, black);
     color: var(--button-text);
   }
 
   #session.session-start:not(:disabled):hover {
-    background: var(--start-hover);
+    background: color-mix(in srgb, var(--green) 86%, black);
   }
 
   #session.session-stop:not(:disabled):hover {
-    background: var(--stop-hover);
+    background: color-mix(in srgb, var(--pink) 86%, black);
   }
 
   #uri-toggle:not(:disabled):hover {
-    background: var(--green);
+    background: color-mix(in srgb, var(--button-bg) 86%, black);
     box-shadow: 5px 5px 0 var(--stroke);
     color: var(--button-text);
     transform: translate(-1px, -1px);
@@ -847,7 +849,7 @@ button:disabled {
 
   .complete-button:hover {
     animation: checkbox-wiggle 420ms ease;
-    background: var(--green);
+    background: color-mix(in srgb, var(--green) 86%, black);
   }
 
   .annotation-character:hover {
