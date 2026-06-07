@@ -848,13 +848,15 @@ function scrollToTask(key) {
   }
 
   requestAnimationFrame(() => {
-    const item = taskNodeByKey(key);
-    if (!item) {
-      return;
-    }
-    item.scrollIntoView({
-      block: "center",
-      behavior: reducedMotion.matches ? "auto" : "smooth",
+    requestAnimationFrame(() => {
+      const item = taskNodeByKey(key);
+      if (!item) {
+        return;
+      }
+      item.scrollIntoView({
+        block: "center",
+        behavior: reducedMotion.matches ? "auto" : "smooth",
+      });
     });
   });
 }
@@ -1656,6 +1658,7 @@ async function addAnnotation(event, entry) {
   }
 
   const button = form.querySelector("button");
+  let annotated = false;
   button.disabled = true;
   showStatus("Annotating...");
   try {
@@ -1670,14 +1673,18 @@ async function addAnnotation(event, entry) {
     markProgressEvidence(entry.key);
     saveSession();
     input.value = "";
+    lastTouchedKey = entry.key;
     openAnnotationKeys.add(entry.taskKey);
+    annotated = true;
     showStatus("Annotated");
     renderApp({ animated: true, focusKey: entry.key });
   } catch (error) {
     showStatus(error.message);
   } finally {
     button.disabled = false;
-    input.focus();
+    if (!annotated) {
+      input.focus();
+    }
   }
 }
 
