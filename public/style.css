@@ -632,7 +632,6 @@ button:disabled {
   box-shadow:
     6px 6px 0 var(--stroke),
     inset 0 0 0 4px var(--green);
-  animation: current-bob 1500ms infinite;
 }
 
 .tasks li.crossed-task {
@@ -891,6 +890,12 @@ button:disabled {
     box-shadow: 9px 11px 0 var(--stroke);
   }
 
+  .tasks li.current-task.can-complete:hover {
+    box-shadow:
+      9px 11px 0 var(--stroke),
+      inset 0 0 0 4px var(--green);
+  }
+
   #submit:not(:disabled):hover,
   #refresh:not(:disabled):hover,
   #session:not(:disabled):hover,
@@ -1031,17 +1036,6 @@ button:disabled {
     box-shadow:
       9px 9px 0 var(--pink),
       inset 0 0 0 4px var(--yellow);
-  }
-}
-
-@keyframes current-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-3px);
   }
 }
 
