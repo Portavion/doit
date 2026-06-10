@@ -7,16 +7,25 @@ const uriInput = document.querySelector("#uri-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const sessionButton = document.querySelector("#session");
+const declareBacklogButton = document.querySelector("#declare-backlog");
 const resetCacheButton = document.querySelector("#reset-cache");
 const settingsToggle = document.querySelector("#settings-toggle");
 const settingsMenu = document.querySelector("#settings-menu");
 const statusText = document.querySelector("#status");
 const listCaption = document.querySelector("#list-caption");
 const extraStatus = document.querySelector("#extra-status");
+const backlogStatus = document.querySelector("#backlog-status");
 const tomorrowStatus = document.querySelector("#tomorrow-status");
+const modeToday = document.querySelector("#mode-today");
+const modeBacklog = document.querySelector("#mode-backlog");
+const modeFuture = document.querySelector("#mode-future");
+const todayPanel = document.querySelector("#today-panel");
+const backlogPanel = document.querySelector("#backlog-panel");
+const futurePanel = document.querySelector("#future-panel");
 const list = document.querySelector("#tasks");
 const extraSection = document.querySelector(".extra-section");
 const extraList = document.querySelector("#extra-tasks");
+const backlogList = document.querySelector("#backlog-tasks");
 const tomorrowList = document.querySelector("#tomorrow-tasks");
 const coarsePointer = window.matchMedia("(pointer: coarse)");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -27,7 +36,12 @@ const completeHoldMs = 850;
 let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
-let session = defaultSession();
+let sessions = {
+  today: defaultSession("today"),
+  backlog: defaultSession("backlog"),
+};
+let activeMode = "today";
+let session = sessions.today;
 let addingToday = false;
 const openAnnotationKeys = new Set();
 const openSplitKeys = new Set();
@@ -126,9 +140,10 @@ function saveColorscheme(colorscheme) {
   }
 }
 
-function defaultSession() {
+function defaultSession(mode = "today") {
   return {
     date: storageDateKey(),
+    mode,
     startedAt: "",
     entries: [],
     completedKeys: [],
@@ -174,6 +189,7 @@ function normalizeEntry(entry) {
       typeof entry.fingerprint === "string" ? entry.fingerprint : "",
     readded: Boolean(entry.readded),
     extra: Boolean(entry.extra),
+    backlog: Boolean(entry.backlog),
     waiting:
       typeof entry.waiting === "boolean" ? entry.waiting : Boolean(entry.readded),
   };
@@ -194,17 +210,18 @@ function normalizeEntry(entry) {
   return next;
 }
 
-function normalizeSession(value) {
+function normalizeSession(value, mode = "today") {
   if (!value || typeof value !== "object" || value.date !== storageDateKey()) {
-    return defaultSession();
+    return defaultSession(mode);
   }
 
   const entries = Array.isArray(value.entries)
     ? value.entries.map(normalizeEntry).filter(Boolean)
     : [];
   return {
-    ...defaultSession(),
+    ...defaultSession(mode),
     ...value,
+    mode,
     entries,
     completedKeys: normalizeKeyList(value.completedKeys),
     startedKeys: normalizeKeyList(value.startedKeys),
@@ -215,6 +232,49 @@ function normalizeSession(value) {
       typeof value.scanCursorKey === "string" ? value.scanCursorKey : "",
     runKeys: normalizeKeyList(value.runKeys),
   };
+}
+
+function normalizeWorkflowState(value) {
+  if (value?.version === 2 && value.sessions && typeof value.sessions === "object") {
+    const nextSessions = {
+      today: normalizeSession(value.sessions.today, "today"),
+      backlog: normalizeSession(value.sessions.backlog, "backlog"),
+    };
+    return {
+      activeMode: ["today", "backlog", "future"].includes(value.activeMode)
+        ? value.activeMode
+        : "today",
+      sessions: nextSessions,
+    };
+  }
+
+  return {
+    activeMode: "today",
+    sessions: {
+      today: normalizeSession(value, "today"),
+      backlog: defaultSession("backlog"),
+    },
+  };
+}
+
+function workflowState() {
+  return {
+    version: 2,
+    activeMode,
+    sessions,
+  };
+}
+
+function hasAnySession() {
+  return hasSession(sessions.today) || hasSession(sessions.backlog);
+}
+
+function syncActiveSession() {
+  if (activeMode === "backlog") {
+    session = sessions.backlog;
+    return;
+  }
+  session = sessions.today;
 }
 
 function saveSession() {
@@ -231,7 +291,11 @@ function clearLegacySession() {
 }
 
 function resetSessionAfterIssue(message = "Workflow session reset") {
-  session = defaultSession();
+  sessions = {
+    today: defaultSession("today"),
+    backlog: defaultSession("backlog"),
+  };
+  syncActiveSession();
   lastTouchedKey = "";
   clearLegacySession();
   showStatus(message);
@@ -243,8 +307,11 @@ async function loadWorkflowSession() {
     const response = await fetch("/api/workflow-session", { cache: "no-store" });
     const body = await parseResponse(response);
     clearLegacySession();
-    session = normalizeSession(body.session);
-    if (body.session && !hasSession()) {
+    const next = normalizeWorkflowState(body.session);
+    sessions = next.sessions;
+    activeMode = next.activeMode;
+    syncActiveSession();
+    if (body.session && !hasAnySession()) {
       await clearWorkflowSession();
       showStatus("Workflow session reset");
     }
@@ -255,7 +322,7 @@ async function loadWorkflowSession() {
 }
 
 async function saveWorkflowSession() {
-  if (!hasSession()) {
+  if (!hasAnySession()) {
     await clearWorkflowSession();
     return;
   }
@@ -264,7 +331,7 @@ async function saveWorkflowSession() {
     const response = await fetch("/api/workflow-session", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session }),
+      body: JSON.stringify({ session: workflowState() }),
     });
     await parseResponse(response);
   } catch {
@@ -409,6 +476,13 @@ function taskExtra(task) {
   return Boolean(task?.extra);
 }
 
+function taskBacklog(task) {
+  if (Array.isArray(task?.tags) && task.tags.includes("backlog")) {
+    return true;
+  }
+  return Boolean(task?.backlog);
+}
+
 function taskId(task) {
   return typeof task?.id === "number" ? task.id : null;
 }
@@ -460,6 +534,7 @@ function entryFromTask(task, key = taskKey(task)) {
     fingerprint: taskFingerprint(task),
     readded: false,
     extra: taskExtra(task),
+    backlog: taskBacklog(task),
     waiting: false,
   };
 }
@@ -471,6 +546,7 @@ function readdedEntry(entry) {
     key: `${entry.taskKey}:again:${suffix}`,
     readded: true,
     extra: entry.extra,
+    backlog: entry.backlog,
     waiting: true,
   };
 }
@@ -511,7 +587,12 @@ function regularTodayWorkTasks(tasks) {
   const currentDay = todayKey();
   return tasks.filter((task) => {
     const dueDay = dueDateKey(task);
-    return dueDay !== "" && dueDay <= currentDay && !taskExtra(task);
+    return (
+      dueDay !== "" &&
+      dueDay <= currentDay &&
+      !taskExtra(task) &&
+      !taskBacklog(task)
+    );
   });
 }
 
@@ -519,7 +600,12 @@ function extraTodayTasks(tasks) {
   const currentDay = todayKey();
   return tasks.filter((task) => {
     const dueDay = dueDateKey(task);
-    return dueDay !== "" && dueDay <= currentDay && taskExtra(task);
+    return (
+      dueDay !== "" &&
+      dueDay <= currentDay &&
+      taskExtra(task) &&
+      !taskBacklog(task)
+    );
   });
 }
 
@@ -527,12 +613,49 @@ function futureWorkTasks(tasks) {
   const currentDay = todayKey();
   return tasks.filter((task) => {
     const dueDay = dueDateKey(task);
-    return dueDay === "" || dueDay > currentDay;
+    return !taskBacklog(task) && (dueDay === "" || dueDay > currentDay);
   });
 }
 
-function hasSession() {
-  return session.date === storageDateKey() && session.entries.length > 0;
+function backlogTasks(tasks) {
+  return tasks.filter(taskBacklog);
+}
+
+function backlogCandidateTasks() {
+  return todayWorkTasks(latestTasks).filter((task) => {
+    return !taskBacklog(task) && Number.isInteger(taskId(task));
+  });
+}
+
+function backlogCaption(tasks) {
+  const declared = tasks
+    .flatMap((task) => normalizeAnnotations(task.annotations))
+    .map((annotation) => annotation.description.match(/^Declared backlog: (\d{4})-(\d{2})-(\d{2})$/))
+    .filter(Boolean)
+    .map((match) => `${match[1]}-${match[2]}-${match[3]}`)
+    .sort()
+    .pop();
+  const count = `${tasks.length} backlog`;
+  if (!declared) {
+    return count;
+  }
+
+  return `${count} · declared ${shortDateLabel(declared)}`;
+}
+
+function shortDateLabel(date) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) {
+    return date;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
+function hasSession(value = session) {
+  return value.date === storageDateKey() && value.entries.length > 0;
 }
 
 function crossedKeySet() {
@@ -570,6 +693,9 @@ function extraLast(entries) {
 }
 
 function orderedOpenEntries() {
+  if (session.mode === "backlog") {
+    return openEntries();
+  }
   return extraLast(openEntries());
 }
 
@@ -684,6 +810,16 @@ function reconcileSession(tasks) {
       changed = true;
       continue;
     }
+    if (session.mode !== "backlog" && taskBacklog(task)) {
+      session.clearedKeys.push(entry.key);
+      changed = true;
+      continue;
+    }
+    if (session.mode === "backlog" && !taskBacklog(task)) {
+      session.clearedKeys.push(entry.key);
+      changed = true;
+      continue;
+    }
 
     const next = entryFromTask(task, entry.key);
     for (const field of [
@@ -697,6 +833,8 @@ function reconcileSession(tasks) {
       "uri",
       "annotations",
       "fingerprint",
+      "extra",
+      "backlog",
     ]) {
       const current = field === "annotations" ? JSON.stringify(entry[field]) : entry[field];
       const value = field === "annotations" ? JSON.stringify(next[field]) : next[field];
@@ -711,7 +849,25 @@ function reconcileSession(tasks) {
   return changed;
 }
 
+function reconcileSessions(tasks) {
+  const mode = activeMode;
+  let changed = false;
+  for (const nextMode of ["today", "backlog"]) {
+    activeMode = nextMode;
+    syncActiveSession();
+    if (reconcileSession(tasks)) {
+      changed = true;
+    }
+  }
+  activeMode = mode;
+  syncActiveSession();
+  return changed;
+}
+
 function handleSessionButton() {
+  if (activeMode === "future") {
+    return;
+  }
   if (!hasSession()) {
     startSession();
     return;
@@ -732,32 +888,38 @@ function handleSessionButton() {
 }
 
 function stopSession(message = "Stopped FPV session") {
-  session = defaultSession();
+  sessions[session.mode] = defaultSession(session.mode);
+  syncActiveSession();
   lastTouchedKey = "";
   clearLegacySession();
-  void clearWorkflowSession();
+  saveSession();
   showStatus(message);
   renderApp({ animated: true });
 }
 
 function startSession() {
-  const entries = todayWorkTasks(latestTasks).map((task) => entryFromTask(task));
+  const tasks =
+    activeMode === "backlog" ? backlogTasks(latestTasks) : todayWorkTasks(latestTasks);
+  const entries = tasks.map((task) => entryFromTask(task));
   if (entries.length === 0) {
     showStatus("No tasks are ready");
     renderApp({ animated: true });
     return;
   }
 
-  session = {
-    ...defaultSession(),
+  sessions[activeMode] = {
+    ...defaultSession(activeMode),
     startedAt: new Date().toISOString(),
     entries,
   };
+  syncActiveSession();
   beginPass(entries, "Session started");
 }
 
 function beginPass(entries, message) {
-  entries = extraLast(entries);
+  if (session.mode !== "backlog") {
+    entries = extraLast(entries);
+  }
   for (const entry of entries) {
     entry.waiting = false;
   }
@@ -813,6 +975,17 @@ function advanceScan(shouldMark) {
 function finishScan(markedKey = "") {
   const openKeys = new Set(openEntries().map((entry) => entry.key));
   const markedKeys = session.scanMarkedKeys.filter((key) => openKeys.has(key));
+  if (session.mode === "backlog") {
+    session.runKeys = markedKeys.slice().reverse();
+    session.scanMarkedKeys = [];
+    session.scanCursorKey = "";
+    const focusKey = activeRunKeys()[0] || markedKey || session.runKeys[0] || "";
+    showStatus("Dotted chain ready");
+    renderApp({ animated: true, focusKey });
+    saveSession();
+    return;
+  }
+
   const markedEntries = markedKeys.map(entryByKey).filter(Boolean);
   const regularKeys = markedEntries
     .filter((entry) => !entry.extra)
@@ -848,6 +1021,14 @@ function crossOff(key, bucket) {
   compactSession();
   saveSession();
   return runFinished;
+}
+
+function clearActiveSession() {
+  sessions[session.mode] = defaultSession(session.mode);
+  syncActiveSession();
+  lastTouchedKey = "";
+  clearLegacySession();
+  saveSession();
 }
 
 function hasProgressEvidence(key) {
@@ -888,9 +1069,11 @@ function startAgain(key) {
 }
 
 function renderApp({ animated = false, focusKey = "" } = {}) {
+  renderModeSwitch();
   renderSessionButton();
   renderExtraTasks({ animated });
   renderTasks({ animated });
+  renderBacklogTasks({ animated });
   renderTomorrowTasks({ animated });
   if (animated) {
     scrollToTask(focusKey);
@@ -918,7 +1101,7 @@ function scrollToTask(key) {
 
 function taskNodeByKey(key) {
   return Array.from(document.querySelectorAll(".tasks [data-task-key]")).find(
-    (node) => node.dataset.taskKey === key,
+    (node) => node.dataset.taskKey === key && !node.closest("[hidden]"),
   );
 }
 
@@ -953,13 +1136,39 @@ function createAction(label, className, handler, disabled = false) {
   return button;
 }
 
+function setActiveMode(mode) {
+  activeMode = ["today", "backlog", "future"].includes(mode) ? mode : "today";
+  syncActiveSession();
+  saveSession();
+  renderApp({ animated: true, focusKey: session.scanCursorKey });
+}
+
+function renderModeSwitch() {
+  for (const [mode, button] of [
+    ["today", modeToday],
+    ["backlog", modeBacklog],
+    ["future", modeFuture],
+  ]) {
+    const active = activeMode === mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+
+  todayPanel.hidden = activeMode !== "today";
+  backlogPanel.hidden = activeMode !== "backlog";
+  futurePanel.hidden = activeMode !== "future";
+}
+
 function renderSessionButton() {
   const readyCount = todayWorkTasks(latestTasks).length;
   const openCount = hasSession() ? openEntries().length : readyCount;
   const active = scanActive() || runActive();
   sessionButton.classList.toggle("session-start", !active);
   sessionButton.classList.toggle("session-stop", active);
-  sessionButton.disabled = openCount === 0 && readyCount === 0 && !active;
+  sessionButton.hidden = activeMode !== "today";
+  sessionButton.disabled =
+    activeMode !== "today" || (openCount === 0 && readyCount === 0 && !active);
+  declareBacklogButton.disabled = backlogCandidateTasks().length === 0;
 
   if (active) {
     sessionButton.textContent = "Stop";
@@ -969,6 +1178,10 @@ function renderSessionButton() {
 }
 
 function renderTasks({ animated = false } = {}) {
+  if (activeMode !== "today") {
+    return;
+  }
+
   if (!hasSession()) {
     renderReadyTasks({ animated });
     return;
@@ -1032,6 +1245,12 @@ function renderReadyTasks({ animated = false } = {}) {
 }
 
 function renderExtraTasks({ animated = false } = {}) {
+  if (activeMode !== "today") {
+    extraSection.hidden = true;
+    extraList.textContent = "";
+    return;
+  }
+
   if (hasSession()) {
     const entries = openEntries().filter((entry) => entry.extra);
     const items = [];
@@ -1072,6 +1291,102 @@ function renderExtraTasks({ animated = false } = {}) {
   renderKeyedList(extraList, items, animated);
 }
 
+function renderBacklogTasks({ animated = false } = {}) {
+  if (activeMode !== "backlog") {
+    return;
+  }
+
+  if (!hasSession()) {
+    renderReadyBacklogTasks({ animated });
+    return;
+  }
+
+  compactSession();
+  if (scanActive()) {
+    const items = [];
+    let taskCount = 0;
+    session.entries.forEach((entry, index) => {
+      if (isCrossed(entry.key)) {
+        return;
+      }
+      taskCount += 1;
+      pushTaskItem(items, entry, { backlog: true, index, sessionTask: true });
+    });
+    backlogStatus.textContent = `${taskCount} backlog`;
+    if (taskCount === 0) {
+      items.push(emptyListItem("backlog-empty", "No backlog tasks"));
+    }
+    renderKeyedList(backlogList, items, animated);
+    return;
+  }
+
+  if (session.runKeys.length > 0) {
+    renderBacklogRunTasks({ animated });
+    return;
+  }
+
+  const entries = openEntries();
+  const items = [];
+  backlogStatus.textContent = `${entries.length} backlog`;
+  if (entries.length === 0) {
+    items.push(emptyListItem("backlog-empty", "No backlog tasks"));
+    renderKeyedList(backlogList, items, animated);
+    return;
+  }
+  entries.forEach((entry, index) => {
+    pushTaskItem(items, entry, { backlog: true, index, sessionTask: true });
+  });
+  renderKeyedList(backlogList, items, animated);
+}
+
+function renderReadyBacklogTasks({ animated = false } = {}) {
+  const tasks = backlogTasks(latestTasks);
+  const items = [];
+  backlogStatus.textContent = backlogCaption(tasks);
+  if (tasks.length === 0) {
+    items.push(emptyListItem("backlog-empty", "No backlog tasks"));
+    renderKeyedList(backlogList, items, animated);
+    return;
+  }
+  tasks.forEach((task, index) => {
+    pushTaskItem(items, entryFromTask(task), {
+      backlog: true,
+      index,
+      preview: true,
+    });
+  });
+  renderKeyedList(backlogList, items, animated);
+}
+
+function renderBacklogRunTasks({ animated = false } = {}) {
+  const runKeys = activeRunKeys();
+  const runKeySet = new Set(runKeys);
+  const items = [];
+  let hiddenCount = 0;
+  backlogStatus.textContent = `${runKeys.length} backlog`;
+
+  session.entries.forEach((entry, index) => {
+    if (isCrossed(entry.key)) {
+      return;
+    }
+
+    if (runKeySet.has(entry.key)) {
+      pushTaskItem(items, entry, { backlog: true, index, sessionTask: true });
+      return;
+    }
+
+    hiddenCount += 1;
+  });
+
+  if (hiddenCount > 0) {
+    items.push(hiddenListItem(hiddenCount));
+  }
+  if (items.length === 0) {
+    items.push(emptyListItem("backlog-empty", "No open backlog tasks"));
+  }
+  renderKeyedList(backlogList, items, animated);
+}
+
 function renderRunTasks({ animated = false } = {}) {
   const runKeys = activeRunKeys();
   const runKeySet = new Set(runKeys);
@@ -1105,6 +1420,10 @@ function renderRunTasks({ animated = false } = {}) {
 }
 
 function renderTomorrowTasks({ animated = false } = {}) {
+  if (activeMode !== "future") {
+    return;
+  }
+
   const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
   const tasks = futureWorkTasks(latestTasks).filter(
     (task) => !sessionTaskKeys.has(taskKey(task)),
@@ -1379,6 +1698,7 @@ function patchTaskItem(item, entry, options = {}) {
     spriteClassName,
     canQuickComplete,
     openAnnotationKeys.has(entry.taskKey),
+    entry.backlog,
   ]);
 
   item.className = "task-item";
@@ -1387,6 +1707,7 @@ function patchTaskItem(item, entry, options = {}) {
   item.classList.toggle("due-today", dueDay === currentDay);
   item.classList.toggle("preview-task", Boolean(options.preview));
   item.classList.toggle("extra-task", entry.extra || Boolean(options.extra));
+  item.classList.toggle("backlog-task", entry.backlog || Boolean(options.backlog));
   item.classList.toggle("tomorrow-task", Boolean(options.tomorrow));
   item.classList.toggle("session-task", Boolean(options.sessionTask));
   item.classList.toggle("marked-task", marked);
@@ -1572,6 +1893,11 @@ function patchActionItem(actionItem, entry, state) {
         toggleMoreActions(entry.key),
       ),
     );
+    if (entry.backlog) {
+      actions.append(
+        createAction("Release", "secondary-action", () => releaseTask(entry)),
+      );
+    }
     if (!hasEvidence) {
       const hint = document.createElement("p");
       hint.className = "progress-hint";
@@ -1774,16 +2100,14 @@ async function completeTaskByKey(key) {
   let completedSession = false;
   if (sessionEntry) {
     const runFinished = crossOff(key, "completedKeys");
-    if (reconcileSession(latestTasks)) {
+    if (reconcileSessions(latestTasks)) {
       saveSession();
     }
     if (runFinished) {
       const entries = orderedOpenEntries();
       if (entries.length === 0) {
         completedSession = true;
-        session = defaultSession();
-        lastTouchedKey = "";
-        clearLegacySession();
+        clearActiveSession();
       } else if (entries.length === 1) {
         session.runKeys = [entries[0].key];
         session.scanMarkedKeys = [];
@@ -1801,7 +2125,7 @@ async function completeTaskByKey(key) {
         saveSession();
       }
     }
-  } else if (hasSession() && reconcileSession(latestTasks)) {
+  } else if (hasSession() && reconcileSessions(latestTasks)) {
     saveSession();
   }
 
@@ -1814,19 +2138,17 @@ async function completeTaskByKey(key) {
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
     if (hasSession()) {
-      if (reconcileSession(latestTasks)) {
+      if (reconcileSessions(latestTasks)) {
         saveSession();
       }
-    }
-    if (completedSession) {
-      void clearWorkflowSession();
     }
     completingTaskKey = null;
     showStatus(completedSession ? "FPV session complete" : "Completed");
     renderApp({ animated: true, focusKey: activeRunKeys()[0] || nextFocusKey });
   } catch (error) {
     latestTasks = previousTasks;
-    session = previousSession;
+    sessions[previousSession.mode] = previousSession;
+    syncActiveSession();
     saveTaskCache(latestTasks);
     if (hasSession()) {
       saveSession();
@@ -1858,7 +2180,7 @@ async function addAnnotation(event, entry) {
     });
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
-    reconcileSession(latestTasks);
+    reconcileSessions(latestTasks);
     markProgressEvidence(entry.key);
     saveSession();
     input.value = "";
@@ -1906,7 +2228,7 @@ async function splitTask(event, entry) {
     let completedSession = false;
     let nextFocusKey = "";
     if (hasSession()) {
-      reconcileSession(latestTasks);
+      reconcileSessions(latestTasks);
       if (runActive() || scanActive()) {
         nextFocusKey = activeRunKeys()[0] || session.scanCursorKey;
         saveSession();
@@ -1914,10 +2236,7 @@ async function splitTask(event, entry) {
         const entries = orderedOpenEntries();
         if (entries.length === 0) {
           completedSession = true;
-          session = defaultSession();
-          lastTouchedKey = "";
-          clearLegacySession();
-          void clearWorkflowSession();
+          clearActiveSession();
         } else if (entries.length === 1) {
           session.runKeys = [entries[0].key];
           session.scanMarkedKeys = [];
@@ -1982,7 +2301,7 @@ async function deleteTask(event, entry) {
     let nextFocusKey = "";
     if (hasSession()) {
       const runFinished = crossOff(entry.key, "clearedKeys");
-      if (reconcileSession(latestTasks)) {
+      if (reconcileSessions(latestTasks)) {
         saveSession();
       }
       nextFocusKey = activeRunKeys()[0] || session.scanCursorKey;
@@ -1990,10 +2309,7 @@ async function deleteTask(event, entry) {
         const entries = orderedOpenEntries();
         if (entries.length === 0) {
           completedSession = true;
-          session = defaultSession();
-          lastTouchedKey = "";
-          clearLegacySession();
-          void clearWorkflowSession();
+          clearActiveSession();
         } else if (entries.length === 1) {
           session.runKeys = [entries[0].key];
           session.scanMarkedKeys = [];
@@ -2026,6 +2342,71 @@ async function deleteTask(event, entry) {
   }
 }
 
+async function declareBacklog() {
+  const tasks = backlogCandidateTasks();
+  if (tasks.length === 0) {
+    showStatus("No tasks to move");
+    renderApp({ animated: true });
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Move ${tasks.length} overdue and due-today task${
+      tasks.length === 1 ? "" : "s"
+    } into Backlog?`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  closeSettings();
+  declareBacklogButton.disabled = true;
+  showStatus("Declaring backlog...");
+  try {
+    const response = await fetch("/api/backlog/declare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: tasks.map(taskId) }),
+    });
+    latestTasks = normalizeTasks(await parseResponse(response));
+    saveTaskCache(latestTasks);
+    reconcileSessions(latestTasks);
+    saveSession();
+    setActiveMode("backlog");
+    showStatus("Backlog declared");
+  } catch (error) {
+    showStatus(error.message);
+    renderApp({ animated: true });
+  } finally {
+    declareBacklogButton.disabled = false;
+  }
+}
+
+async function releaseTask(entry) {
+  if (entry.id === null) {
+    return;
+  }
+
+  showStatus("Releasing task...");
+  try {
+    const response = await fetch(`/api/tasks/${entry.id}/release`, {
+      method: "POST",
+    });
+    latestTasks = normalizeTasks(await parseResponse(response));
+    saveTaskCache(latestTasks);
+    if (hasSession()) {
+      crossOff(entry.key, "clearedKeys");
+      reconcileSessions(latestTasks);
+      saveSession();
+    }
+    showStatus("Released for tomorrow");
+    renderApp({ animated: true, focusKey: activeRunKeys()[0] || "" });
+  } catch (error) {
+    showStatus(error.message);
+    renderApp({ animated: true, focusKey: entry.key });
+  }
+}
+
 async function loadTasks() {
   refresh.disabled = true;
   showStatus("Loading tasks...");
@@ -2033,7 +2414,7 @@ async function loadTasks() {
     const response = await fetch("/api/tasks", { cache: "no-store" });
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
-    if (reconcileSession(latestTasks)) {
+    if (reconcileSessions(latestTasks)) {
       saveSession();
     }
     showStatus("");
@@ -2072,7 +2453,7 @@ async function addTask(event) {
     });
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
-    if (reconcileSession(latestTasks)) {
+    if (reconcileSessions(latestTasks)) {
       saveSession();
     }
     input.value = "";
@@ -2157,7 +2538,12 @@ function handleSettingsChange(event) {
 
 async function resetCache() {
   latestTasks = [];
-  session = defaultSession();
+  sessions = {
+    today: defaultSession("today"),
+    backlog: defaultSession("backlog"),
+  };
+  activeMode = "today";
+  syncActiveSession();
   lastTouchedKey = "";
   clearAppStorage();
   await clearBrowserCaches();
@@ -2257,6 +2643,10 @@ uriToggle.addEventListener("click", toggleUriField);
 extraToggle.addEventListener("click", toggleTodayMode);
 refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
+declareBacklogButton.addEventListener("click", declareBacklog);
+modeToday.addEventListener("click", () => setActiveMode("today"));
+modeBacklog.addEventListener("click", () => setActiveMode("backlog"));
+modeFuture.addEventListener("click", () => setActiveMode("future"));
 resetCacheButton.addEventListener("click", resetCache);
 settingsToggle.addEventListener("click", toggleSettings);
 settingsMenu.addEventListener("change", handleSettingsChange);
@@ -2266,6 +2656,8 @@ list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
 extraList.addEventListener("click", handleTaskClick);
 extraList.addEventListener("pointerdown", handleTaskPointerdown);
+backlogList.addEventListener("click", handleTaskClick);
+backlogList.addEventListener("pointerdown", handleTaskPointerdown);
 tomorrowList.addEventListener("click", handleTaskClick);
 tomorrowList.addEventListener("pointerdown", handleTaskPointerdown);
 

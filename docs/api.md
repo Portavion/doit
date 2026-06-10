@@ -39,7 +39,7 @@ Response:
     "project": "Inbox",
     "due": "20260604T000000Z",
     "uri": "https://example.com",
-    "tags": ["extra"],
+    "tags": ["extra", "backlog"],
     "urg": 9.5
   }
 ]
@@ -74,6 +74,39 @@ task add project:Inbox due:tomorrow -- "Book train tickets"
 ```
 
 If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
+
+Response: the updated task list.
+
+## Declare Backlog
+
+```http
+POST /api/backlog/declare
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "ids": [12, 13]
+}
+```
+
+Doit adds `+backlog` to each selected pending task that is not already in the backlog and annotates it with the declaration date.
+
+Response: the updated task list.
+
+## Release Backlog Task
+
+```http
+POST /api/tasks/:id/release
+```
+
+Removes `+backlog` and `+extra`, then moves the task to tomorrow with:
+
+```sh
+task <id> modify -backlog -extra due:tomorrow
+```
 
 Response: the updated task list.
 
@@ -126,12 +159,20 @@ Request:
 ```json
 {
   "session": {
-    "date": "2026-06-03",
-    "entries": [],
-    "progressKeys": [],
-    "scanMarkedKeys": [],
-    "scanCursorKey": "",
-    "runKeys": []
+    "version": 2,
+    "activeMode": "today",
+    "sessions": {
+      "today": {
+        "date": "2026-06-03",
+        "mode": "today",
+        "entries": []
+      },
+      "backlog": {
+        "date": "2026-06-03",
+        "mode": "backlog",
+        "entries": []
+      }
+    }
   }
 }
 ```

@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260610-extra-order">
+    <link rel="stylesheet" href="/style.css?v=20260610-backlog">
   </head>
   <body>
     <main class="shell">
@@ -41,6 +41,7 @@
             </svg>
           </button>
           <div id="settings-menu" class="settings-menu" hidden>
+            <button id="declare-backlog" class="settings-action" type="button">Declare backlog</button>
             <button id="reset-cache" class="settings-action" type="button">Reset cache</button>
             <p>Colourscheme</p>
             <label><input type="radio" name="colorscheme" value="default"> Default</label>
@@ -70,7 +71,13 @@
         <p id="status" hidden></p>
       </section>
 
-      <div class="workdeck">
+      <nav class="mode-switch" aria-label="Task lists">
+        <button id="mode-today" class="active" type="button" aria-pressed="true">Today</button>
+        <button id="mode-backlog" type="button" aria-pressed="false">Backlog</button>
+        <button id="mode-future" type="button" aria-pressed="false">Future</button>
+      </nav>
+
+      <div id="today-panel" class="workdeck">
         <div class="today-column">
           <section class="list-header">
             <h2>To-do list</h2>
@@ -88,13 +95,23 @@
         </aside>
       </div>
 
-      <section class="list-header tomorrow-header">
-        <h2>Future tasks</h2>
-        <p id="tomorrow-status">0 future</p>
+      <section id="backlog-panel" class="backlog-panel" hidden>
+        <section class="list-header">
+          <h2>Backlog</h2>
+          <p id="backlog-status">0 backlog</p>
+        </section>
+        <ul id="backlog-tasks" class="tasks backlog-tasks"></ul>
       </section>
-      <ul id="tomorrow-tasks" class="tasks tomorrow-tasks"></ul>
+
+      <section id="future-panel" class="future-panel" hidden>
+        <section class="list-header tomorrow-header">
+          <h2>Future tasks</h2>
+          <p id="tomorrow-status">0 future</p>
+        </section>
+        <ul id="tomorrow-tasks" class="tasks tomorrow-tasks"></ul>
+      </section>
     </main>
 
-    <script src="/app.js?v=20260610-extra-order"></script>
+    <script src="/app.js?v=20260610-backlog"></script>
   </body>
 </html>

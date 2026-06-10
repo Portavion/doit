@@ -72,6 +72,11 @@ struct DeleteTaskRequest {
     confirmation: String,
 }
 
+#[derive(Deserialize)]
+struct DeclareBacklogRequest {
+    ids: Vec<u64>,
+}
+
 #[derive(Serialize)]
 struct TaskItem {
     description: String,
@@ -183,7 +188,9 @@ pub fn app(task: TaskConfig) -> Router {
         .route("/api/tasks/:id", delete(delete_task))
         .route("/api/tasks/:id/complete", post(complete_task))
         .route("/api/tasks/:id/annotations", post(add_annotation))
+        .route("/api/tasks/:id/release", post(release_task))
         .route("/api/tasks/:id/split", post(split_task))
+        .route("/api/backlog/declare", post(declare_backlog))
         .route(
             "/api/workflow-session",
             get(workflow_session)
@@ -495,6 +502,90 @@ async fn add_annotation(
     .await
 }
 
+/// Adds selected pending tasks to the backlog, syncs Taskwarrior, and returns the updated list
+async fn declare_backlog(
+    State(state): State<AppState>,
+    Json(payload): Json<DeclareBacklogRequest>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    let ids = payload
+        .ids
+        .into_iter()
+        .filter(|id| *id > 0)
+        .collect::<Vec<_>>();
+    if ids.is_empty() {
+        return Err(AppError::bad_request("at least one task is required"));
+    }
+
+    with_task_lock(&state.task, || async {
+        let tasks = list_tasks(&state.task).await?;
+        let task_ids = tasks
+            .iter()
+            .filter(|task| task.id.is_some() && !task.tags.iter().any(|tag| tag == "backlog"))
+            .filter_map(|task| task.id)
+            .collect::<Vec<_>>();
+
+        for id in ids {
+            if !task_ids.contains(&id) {
+                continue;
+            }
+            let output = run_task(
+                &state.task,
+                [id.to_string(), "modify".to_string(), "+backlog".to_string()],
+            )
+            .await?;
+            ensure_success("task modify", output.status, &output.stderr)?;
+
+            let output = run_task(
+                &state.task,
+                [
+                    id.to_string(),
+                    "annotate".to_string(),
+                    "--".to_string(),
+                    format!("Declared backlog: {}", local_day()),
+                ],
+            )
+            .await?;
+            ensure_success("task annotate", output.status, &output.stderr)?;
+        }
+
+        sync_tasks(&state.task).await?;
+
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
+}
+
+/// Releases a backlog task back to tomorrow, syncs Taskwarrior, and returns the updated list
+async fn release_task(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    with_task_lock(&state.task, || async {
+        let tasks = list_tasks(&state.task).await?;
+        if !tasks.iter().any(|task| task.id == Some(id)) {
+            return Err(AppError::not_found("task not found"));
+        }
+
+        let output = run_task(
+            &state.task,
+            [
+                id.to_string(),
+                "modify".to_string(),
+                "-backlog".to_string(),
+                "-extra".to_string(),
+                "due:tomorrow".to_string(),
+            ],
+        )
+        .await?;
+        ensure_success("task modify", output.status, &output.stderr)?;
+
+        sync_tasks(&state.task).await?;
+
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
+}
+
 async fn workflow_session(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -721,6 +812,29 @@ fn unix_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+fn local_day() -> String {
+    let days = unix_timestamp() / 86_400;
+    let (year, month, day) = civil_from_days(days as i64);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let days = days + 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let day_of_era = days - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_part = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_part + 2) / 5 + 1;
+    let month = month_part + if month_part < 10 { 3 } else { -9 };
+    if month <= 2 {
+        year += 1;
+    }
+    (year, month, day)
 }
 
 async fn with_task_lock<F, Fut, T>(config: &TaskConfig, work: F) -> Result<T, AppError>
