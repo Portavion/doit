@@ -14,7 +14,7 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use fs2::FileExt;
@@ -63,6 +63,12 @@ struct AddAnnotationRequest {
 #[derive(Deserialize)]
 struct SplitTaskRequest {
     descriptions: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct DeleteTaskRequest {
+    reason: String,
+    confirmation: String,
 }
 
 #[derive(Serialize)]
@@ -170,6 +176,7 @@ pub fn app(task: TaskConfig) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/api/tasks", get(tasks).post(add_task))
+        .route("/api/tasks/:id", delete(delete_task))
         .route("/api/tasks/:id/complete", post(complete_task))
         .route("/api/tasks/:id/annotations", post(add_annotation))
         .route("/api/tasks/:id/split", post(split_task))
@@ -393,6 +400,51 @@ async fn complete_task(
     with_task_lock(&state.task, || async {
         let output = run_task(&state.task, [id.to_string(), "done".to_string()]).await?;
         ensure_success("task done", output.status, &output.stderr)?;
+
+        sync_tasks(&state.task).await?;
+
+        Ok(Json(list_tasks(&state.task).await?))
+    })
+    .await
+}
+
+/// Deletes a pending task after reason and typed confirmation checks
+async fn delete_task(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Json(payload): Json<DeleteTaskRequest>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    let reason = payload.reason.trim();
+    if reason.is_empty() {
+        return Err(AppError::bad_request("reason cannot be empty"));
+    }
+    if reason.chars().count() > MAX_DESCRIPTION_LEN {
+        return Err(AppError::bad_request("reason is too long"));
+    }
+    if payload.confirmation != "delete" {
+        return Err(AppError::bad_request("type delete to confirm"));
+    }
+
+    with_task_lock(&state.task, || async {
+        let tasks = list_tasks(&state.task).await?;
+        if !tasks.iter().any(|task| task.id == Some(id)) {
+            return Err(AppError::not_found("task not found"));
+        }
+
+        let output = run_task(
+            &state.task,
+            [
+                id.to_string(),
+                "annotate".to_string(),
+                "--".to_string(),
+                format!("Delete reason: {reason}"),
+            ],
+        )
+        .await?;
+        ensure_success("task annotate", output.status, &output.stderr)?;
+
+        let output = run_task(&state.task, [id.to_string(), "delete".to_string()]).await?;
+        ensure_success("task delete", output.status, &output.stderr)?;
 
         sync_tasks(&state.task).await?;
 

@@ -25,6 +25,8 @@ let latestTasks = loadTaskCache();
 let session = defaultSession();
 const openAnnotationKeys = new Set();
 const openSplitKeys = new Set();
+const openMoreKeys = new Set();
+const openDeleteKeys = new Set();
 
 const colorschemes = ["default", "everforest", "gruvbox", "rose-pine"];
 
@@ -1453,6 +1455,7 @@ function patchActionItem(actionItem, entry, state) {
     const splitButtonLabel = openSplitKeys.has(entry.key)
       ? "Hide split"
       : "Split task";
+    const moreButtonLabel = openMoreKeys.has(entry.key) ? "Less" : "More";
     actions.append(
       createAction(splitButtonLabel, "secondary-action", () =>
         toggleSplitForm(entry.key),
@@ -1463,6 +1466,9 @@ function patchActionItem(actionItem, entry, state) {
         () => startAgain(entry.key),
         !hasEvidence,
       ),
+      createAction(moreButtonLabel, "secondary-action", () =>
+        toggleMoreActions(entry.key),
+      ),
     );
     if (!hasEvidence) {
       const hint = document.createElement("p");
@@ -1470,8 +1476,18 @@ function patchActionItem(actionItem, entry, state) {
       hint.textContent = "Add a note or split this task first";
       actions.append(hint);
     }
+    if (openMoreKeys.has(entry.key)) {
+      actions.append(
+        createAction("Delete task", "danger-action", () =>
+          openDeleteForm(entry.key),
+        ),
+      );
+    }
     if (openSplitKeys.has(entry.key)) {
       actions.append(splitForm(entry));
+    }
+    if (openDeleteKeys.has(entry.key)) {
+      actions.append(deleteForm(entry));
     }
   }
   actionItem.append(actions);
@@ -1482,7 +1498,24 @@ function toggleSplitForm(key) {
     openSplitKeys.delete(key);
   } else {
     openSplitKeys.add(key);
+    openDeleteKeys.delete(key);
   }
+  renderApp({ animated: true, focusKey: key });
+}
+
+function toggleMoreActions(key) {
+  if (openMoreKeys.has(key)) {
+    openMoreKeys.delete(key);
+    openDeleteKeys.delete(key);
+  } else {
+    openMoreKeys.add(key);
+  }
+  renderApp({ animated: true, focusKey: key });
+}
+
+function openDeleteForm(key) {
+  openDeleteKeys.add(key);
+  openSplitKeys.delete(key);
   renderApp({ animated: true, focusKey: key });
 }
 
@@ -1534,6 +1567,60 @@ function appendSplitInput(fields) {
   row.append(input, add);
   fields.append(row);
   input.focus();
+}
+
+function deleteForm(entry) {
+  const form = document.createElement("form");
+  const question = document.createElement("p");
+  const reasonLabel = document.createElement("label");
+  const reason = document.createElement("input");
+  const confirmationLabel = document.createElement("label");
+  const confirmation = document.createElement("input");
+  const controls = document.createElement("div");
+  const cancel = document.createElement("button");
+  const submit = document.createElement("button");
+
+  form.className = "delete-form";
+  form.addEventListener("submit", (event) => deleteTask(event, entry));
+  question.className = "delete-question";
+  question.textContent = "Delete task?";
+
+  reasonLabel.textContent = "Reason required";
+  reason.name = "reason";
+  reason.maxLength = 500;
+  reason.autocomplete = "off";
+
+  confirmationLabel.textContent = "Confirm by typing: delete";
+  confirmation.name = "confirmation";
+  confirmation.autocomplete = "off";
+
+  controls.className = "delete-controls";
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => {
+    openDeleteKeys.delete(entry.key);
+    renderApp({ animated: true, focusKey: entry.key });
+  });
+
+  submit.type = "submit";
+  submit.className = "danger-action";
+  submit.textContent = "Delete task";
+  submit.disabled = true;
+
+  function refreshSubmitState() {
+    submit.disabled =
+      reason.value.trim() === "" || confirmation.value !== "delete";
+  }
+
+  reason.addEventListener("input", refreshSubmitState);
+  confirmation.addEventListener("input", refreshSubmitState);
+
+  reasonLabel.append(reason);
+  confirmationLabel.append(confirmation);
+  controls.append(cancel, submit);
+  form.append(question, reasonLabel, confirmationLabel, controls);
+  requestAnimationFrame(() => reason.focus());
+  return form;
 }
 
 function isMarked(key) {
@@ -1756,6 +1843,84 @@ async function splitTask(event, entry) {
       control.disabled = false;
     }
     form.querySelector("input")?.focus();
+  }
+}
+
+async function deleteTask(event, entry) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const reason = form.elements.reason.value.trim();
+  const confirmation = form.elements.confirmation.value;
+  if (reason === "") {
+    showStatus("Reason required");
+    return;
+  }
+  if (confirmation !== "delete") {
+    showStatus("Type delete to confirm");
+    return;
+  }
+  if (entry.id === null) {
+    return;
+  }
+
+  for (const control of form.querySelectorAll("input, button")) {
+    control.disabled = true;
+  }
+  showStatus("Deleting task...");
+  try {
+    const response = await fetch(`/api/tasks/${entry.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason, confirmation }),
+    });
+    latestTasks = normalizeTasks(await parseResponse(response));
+    saveTaskCache(latestTasks);
+
+    let completedSession = false;
+    let nextFocusKey = "";
+    if (hasSession()) {
+      const runFinished = crossOff(entry.key, "clearedKeys");
+      if (reconcileSession(latestTasks)) {
+        saveSession();
+      }
+      nextFocusKey = activeRunKeys()[0] || session.scanCursorKey;
+      if (runFinished) {
+        const entries = openEntries();
+        if (entries.length === 0) {
+          completedSession = true;
+          session = defaultSession();
+          lastTouchedKey = "";
+          clearLegacySession();
+          void clearWorkflowSession();
+        } else if (entries.length === 1) {
+          session.runKeys = [entries[0].key];
+          session.scanMarkedKeys = [];
+          session.scanCursorKey = "";
+          nextFocusKey = entries[0].key;
+          saveSession();
+        } else {
+          for (const entry of entries) {
+            entry.waiting = false;
+          }
+          session.scanMarkedKeys = [entries[0].key];
+          session.scanCursorKey = entries[1].key;
+          session.runKeys = [];
+          nextFocusKey = session.scanCursorKey;
+          saveSession();
+        }
+      }
+    }
+
+    openMoreKeys.delete(entry.key);
+    openDeleteKeys.delete(entry.key);
+    showStatus(completedSession ? "FPV session complete" : "Task deleted");
+    renderApp({ animated: true, focusKey: nextFocusKey });
+  } catch (error) {
+    showStatus(error.message);
+    for (const control of form.querySelectorAll("input, button")) {
+      control.disabled = false;
+    }
+    form.elements.reason.focus();
   }
 }
 

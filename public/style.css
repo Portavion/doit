@@ -787,6 +787,55 @@ button:disabled {
   min-width: 46px;
 }
 
+.danger-action {
+  --button-bg: var(--red);
+}
+
+.delete-form {
+  display: grid;
+  gap: 9px;
+  flex-basis: 100%;
+  width: 100%;
+  border: 4px solid var(--stroke);
+  padding: 12px;
+  background: var(--panel);
+  box-shadow: 5px 5px 0 var(--stroke);
+}
+
+.delete-question {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.delete-form label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+}
+
+.delete-form input {
+  padding: 9px 10px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.delete-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.delete-controls button {
+  min-width: 112px;
+  padding: 8px 10px;
+}
+
 .task-uri {
   display: block;
   justify-self: stretch;
@@ -902,6 +951,7 @@ button:disabled {
   .icon-button:not(:disabled):hover,
   .task-actions button:not(:disabled):hover,
   .split-form button:not(:disabled):hover,
+  .delete-form button:not(:disabled):hover,
   .annotation-form button:not(:disabled):hover {
     background: color-mix(in srgb, var(--button-bg) 86%, black);
     box-shadow: 5px 5px 0 var(--stroke);
