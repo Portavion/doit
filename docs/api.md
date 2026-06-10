@@ -39,6 +39,7 @@ Response:
     "project": "Inbox",
     "due": "20260604T000000Z",
     "uri": "https://example.com",
+    "tags": ["extra"],
     "urg": 9.5
   }
 ]
@@ -59,11 +60,12 @@ Request:
 ```json
 {
   "description": "Book train tickets",
-  "uri": "https://example.com"
+  "uri": "https://example.com",
+  "due": "today"
 }
 ```
 
-`uri` is optional. `description` is trimmed, required, and limited to 500 characters.
+`uri` is optional. `due` is optional and accepts `today` or `tomorrow`. `description` is trimmed, required, and limited to 500 characters.
 
 Doit adds tasks with these defaults:
 
@@ -71,7 +73,7 @@ Doit adds tasks with these defaults:
 task add project:Inbox due:tomorrow -- "Book train tickets"
 ```
 
-If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
+If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
 
 Response: the updated task list.
 

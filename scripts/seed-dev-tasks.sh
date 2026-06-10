@@ -71,6 +71,11 @@ add_task "Triage production error spike from payment webhooks" \
   project:Payments priority:H due:today +incident +triage \
   uri:https://sentry.example.com/issues/7712
 
+add_task "Review on-call escalation handoff" \
+  note:"Confirm the current owner and next concrete action before lunch" \
+  project:Support priority:H due:today +extra \
+  uri:https://gitlab.example.com/acme/app/-/issues/207
+
 add_task "Pair with support on enterprise import failure" \
   note:"Customer CSV has blank owner rows and duplicate external IDs" \
   project:Support priority:M due:tomorrow +customer \

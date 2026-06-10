@@ -7,7 +7,7 @@ The app is intentionally single-user. It does not include account management or 
 ## Features
 
 - List pending non-waiting Taskwarrior tasks ordered by urgency
-- Add new `project:Inbox due:tomorrow` tasks
+- Add new `project:Inbox due:tomorrow` tasks, or extra `due:today +extra` tasks
 - Attach an optional `uri` user-defined attribute when adding a task
 - Complete tasks from the web UI
 - Optionally run `task sync` before and after task changes
@@ -93,7 +93,7 @@ Doit also passes non-interactive Taskwarrior overrides for confirmation prompts 
 
 - `GET /health` returns `OK`
 - `GET /api/tasks` optionally runs `task sync`, exports pending non-waiting tasks, and returns JSON
-- `POST /api/tasks` accepts `{ "description": "...", "uri": "https://example.com" }`, adds an Inbox task due tomorrow, optionally syncs, and returns the updated task list
+- `POST /api/tasks` accepts `{ "description": "...", "uri": "https://example.com", "due": "today" }`, adds an Inbox task due tomorrow or extra today, optionally syncs, and returns the updated task list
 - `POST /api/tasks/:id/complete` marks a task done, optionally syncs, and returns the updated task list
 
 See [docs/api.md](docs/api.md) for response shapes and error handling.
@@ -109,7 +109,7 @@ Do not expose Doit directly to the public internet unless an authentication laye
 - Single-user assumptions throughout the backend
 - No built-in authentication or authorization
 - Shells out to the local `task` binary for all task operations
-- Adds new tasks with a fixed `project:Inbox due:tomorrow` default
+- Adds new tasks to `project:Inbox`, defaulting to `due:tomorrow`
 - Uses a simple process-local lock file for serialized task operations
 
 ## Roadmap

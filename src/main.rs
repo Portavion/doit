@@ -53,6 +53,7 @@ struct WorkflowConfig {
 struct AddTaskRequest {
     description: String,
     uri: Option<String>,
+    due: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +80,7 @@ struct TaskItem {
     project: Option<String>,
     due: Option<String>,
     uri: Option<String>,
+    tags: Vec<String>,
     urg: Option<f64>,
     annotations: Vec<TaskAnnotation>,
 }
@@ -91,6 +93,8 @@ struct TaskExportItem {
     project: Option<String>,
     due: Option<String>,
     uri: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
     urgency: Option<f64>,
     #[serde(default)]
     annotations: Vec<TaskAnnotation>,
@@ -266,7 +270,7 @@ async fn tasks(State(state): State<AppState>) -> Result<Json<Vec<TaskItem>>, App
     .await
 }
 
-/// Adds an Inbox task due tomorrow, syncs Taskwarrior, and returns the updated list
+/// Adds an Inbox task, syncs Taskwarrior, and returns the updated list
 async fn add_task(
     State(state): State<AppState>,
     Json(payload): Json<AddTaskRequest>,
@@ -283,13 +287,21 @@ async fn add_task(
         .as_deref()
         .map(str::trim)
         .filter(|uri| !uri.is_empty());
+    let due = match payload.due.as_deref().map(str::trim) {
+        None | Some("") | Some("tomorrow") => "tomorrow",
+        Some("today") => "today",
+        Some(_) => return Err(AppError::bad_request("due must be today or tomorrow")),
+    };
 
     with_task_lock(&state.task, || async {
         let mut args = vec![
             OsString::from("add"),
             OsString::from("project:Inbox"),
-            OsString::from("due:tomorrow"),
+            OsString::from(format!("due:{due}")),
         ];
+        if due == "today" {
+            args.push(OsString::from("+extra"));
+        }
         if let Some(uri) = uri {
             args.push(OsString::from(format!("uri:{uri}")));
         }
@@ -573,6 +585,7 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
                 project: task.project,
                 due: task.due,
                 uri,
+                tags: task.tags,
                 urg: task.urgency,
                 annotations,
             }
@@ -986,7 +999,7 @@ mod tests {
     #[test]
     fn task_items_from_export_sorts_by_urgency_and_uses_description() {
         let stdout = r#"[
-{"id":1,"description":"Alpha task","project":"Inbox","due":"20260531T000000Z","uri":"https://example.com/alpha","urgency":9.5},
+{"id":1,"description":"Alpha task","project":"Inbox","due":"20260531T000000Z","uri":"https://example.com/alpha","tags":["extra"],"urgency":9.5},
 {"id":2,"description":"Beta task","project":"Work","due":"20260530T000000Z","urgency":10.1}
 ]"#;
 
@@ -998,6 +1011,7 @@ mod tests {
         assert_eq!(items[0].project.as_deref(), Some("Work"));
         assert_eq!(items[1].description, "Alpha task");
         assert_eq!(items[1].uri.as_deref(), Some("https://example.com/alpha"));
+        assert_eq!(items[1].tags, vec!["extra".to_string()]);
     }
 
     #[test]

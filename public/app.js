@@ -1,6 +1,8 @@
 const form = document.querySelector("#task-form");
+const formLabel = form.querySelector("label");
 const input = document.querySelector("#description");
 const uriToggle = document.querySelector("#uri-toggle");
+const extraToggle = document.querySelector("#extra-toggle");
 const uriInput = document.querySelector("#uri-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
@@ -10,8 +12,11 @@ const settingsToggle = document.querySelector("#settings-toggle");
 const settingsMenu = document.querySelector("#settings-menu");
 const statusText = document.querySelector("#status");
 const listCaption = document.querySelector("#list-caption");
+const extraStatus = document.querySelector("#extra-status");
 const tomorrowStatus = document.querySelector("#tomorrow-status");
 const list = document.querySelector("#tasks");
+const extraSection = document.querySelector(".extra-section");
+const extraList = document.querySelector("#extra-tasks");
 const tomorrowList = document.querySelector("#tomorrow-tasks");
 const coarsePointer = window.matchMedia("(pointer: coarse)");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -23,6 +28,7 @@ let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
 let session = defaultSession();
+let addingToday = false;
 const openAnnotationKeys = new Set();
 const openSplitKeys = new Set();
 const openMoreKeys = new Set();
@@ -167,7 +173,7 @@ function normalizeEntry(entry) {
     fingerprint:
       typeof entry.fingerprint === "string" ? entry.fingerprint : "",
     readded: Boolean(entry.readded),
-    urgent: Boolean(entry.urgent),
+    extra: Boolean(entry.extra),
     waiting:
       typeof entry.waiting === "boolean" ? entry.waiting : Boolean(entry.readded),
   };
@@ -396,6 +402,13 @@ function taskUri(task) {
   return typeof task?.uri === "string" ? task.uri.trim() : "";
 }
 
+function taskExtra(task) {
+  if (Array.isArray(task?.tags) && task.tags.includes("extra")) {
+    return true;
+  }
+  return Boolean(task?.extra);
+}
+
 function taskId(task) {
   return typeof task?.id === "number" ? task.id : null;
 }
@@ -446,7 +459,7 @@ function entryFromTask(task, key = taskKey(task)) {
     annotations: normalizeAnnotations(task?.annotations),
     fingerprint: taskFingerprint(task),
     readded: false,
-    urgent: false,
+    extra: taskExtra(task),
     waiting: false,
   };
 }
@@ -457,7 +470,7 @@ function readdedEntry(entry) {
     ...entry,
     key: `${entry.taskKey}:again:${suffix}`,
     readded: true,
-    urgent: false,
+    extra: entry.extra,
     waiting: true,
   };
 }
@@ -491,10 +504,22 @@ function spriteClass(task, dueDay, currentDay, nextDay, description) {
 }
 
 function todayWorkTasks(tasks) {
+  return [...regularTodayWorkTasks(tasks), ...extraTodayTasks(tasks)];
+}
+
+function regularTodayWorkTasks(tasks) {
   const currentDay = todayKey();
   return tasks.filter((task) => {
     const dueDay = dueDateKey(task);
-    return dueDay !== "" && dueDay <= currentDay;
+    return dueDay !== "" && dueDay <= currentDay && !taskExtra(task);
+  });
+}
+
+function extraTodayTasks(tasks) {
+  const currentDay = todayKey();
+  return tasks.filter((task) => {
+    const dueDay = dueDateKey(task);
+    return dueDay !== "" && dueDay <= currentDay && taskExtra(task);
   });
 }
 
@@ -529,6 +554,23 @@ function entryByKey(key) {
 function openEntries() {
   const crossed = crossedKeySet();
   return session.entries.filter((entry) => !crossed.has(entry.key));
+}
+
+function extraLast(entries) {
+  const regularEntries = [];
+  const extraEntries = [];
+  for (const entry of entries) {
+    if (entry.extra) {
+      extraEntries.push(entry);
+    } else {
+      regularEntries.push(entry);
+    }
+  }
+  return [...regularEntries, ...extraEntries];
+}
+
+function orderedOpenEntries() {
+  return extraLast(openEntries());
 }
 
 function scanActive() {
@@ -571,7 +613,7 @@ function scanCandidateEntry() {
 }
 
 function nextOpenKeyAfter(key) {
-  const entries = openEntries();
+  const entries = orderedOpenEntries();
   const index = entries.findIndex((entry) => entry.key === key);
   if (index === -1) {
     return entries[0]?.key || "";
@@ -680,7 +722,7 @@ function handleSessionButton() {
     return;
   }
 
-  const entries = openEntries();
+  const entries = orderedOpenEntries();
   if (entries.length > 0) {
     beginPass(entries, "Session started");
     return;
@@ -715,6 +757,7 @@ function startSession() {
 }
 
 function beginPass(entries, message) {
+  entries = extraLast(entries);
   for (const entry of entries) {
     entry.waiting = false;
   }
@@ -770,7 +813,16 @@ function advanceScan(shouldMark) {
 function finishScan(markedKey = "") {
   const openKeys = new Set(openEntries().map((entry) => entry.key));
   const markedKeys = session.scanMarkedKeys.filter((key) => openKeys.has(key));
-  session.runKeys = markedKeys.slice().reverse();
+  const markedEntries = markedKeys.map(entryByKey).filter(Boolean);
+  const regularKeys = markedEntries
+    .filter((entry) => !entry.extra)
+    .map((entry) => entry.key)
+    .reverse();
+  const extraKeys = markedEntries
+    .filter((entry) => entry.extra)
+    .map((entry) => entry.key)
+    .reverse();
+  session.runKeys = [...regularKeys, ...extraKeys];
   session.scanMarkedKeys = [];
   session.scanCursorKey = "";
   const focusKey = activeRunKeys()[0] || markedKey || session.runKeys[0] || "";
@@ -837,6 +889,7 @@ function startAgain(key) {
 
 function renderApp({ animated = false, focusKey = "" } = {}) {
   renderSessionButton();
+  renderExtraTasks({ animated });
   renderTasks({ animated });
   renderTomorrowTasks({ animated });
   if (animated) {
@@ -926,13 +979,16 @@ function renderTasks({ animated = false } = {}) {
     const items = [];
     let taskCount = 0;
     session.entries.forEach((entry, index) => {
-      if (isCrossed(entry.key)) {
+      if (entry.extra || isCrossed(entry.key)) {
         return;
       }
       taskCount += 1;
       pushTaskItem(items, entry, { index, sessionTask: true });
     });
     listCaption.textContent = `${taskCount} task${taskCount === 1 ? "" : "s"}`;
+    if (taskCount === 0) {
+      items.push(emptyListItem("today-empty", "No open session tasks"));
+    }
     renderKeyedList(list, items, animated);
     return;
   }
@@ -942,7 +998,7 @@ function renderTasks({ animated = false } = {}) {
     return;
   }
 
-  const entries = openEntries();
+  const entries = openEntries().filter((entry) => !entry.extra);
   const items = [];
   listCaption.textContent = `${entries.length} task${
     entries.length === 1 ? "" : "s"
@@ -959,7 +1015,7 @@ function renderTasks({ animated = false } = {}) {
 }
 
 function renderReadyTasks({ animated = false } = {}) {
-  const tasks = todayWorkTasks(latestTasks);
+  const tasks = regularTodayWorkTasks(latestTasks);
   const items = [];
   listCaption.textContent = `${tasks.length} task${
     tasks.length === 1 ? "" : "s"
@@ -975,17 +1031,59 @@ function renderReadyTasks({ animated = false } = {}) {
   renderKeyedList(list, items, animated);
 }
 
+function renderExtraTasks({ animated = false } = {}) {
+  if (hasSession()) {
+    const entries = openEntries().filter((entry) => entry.extra);
+    const items = [];
+    extraSection.hidden = entries.length === 0;
+    extraStatus.textContent = `${entries.length} extra`;
+    if (entries.length === 0) {
+      extraList.textContent = "";
+      return;
+    }
+    entries.forEach((entry, index) => {
+      pushTaskItem(items, entry, {
+        extra: true,
+        index,
+        sessionTask: true,
+      });
+    });
+    renderKeyedList(extraList, items, animated);
+    return;
+  }
+
+  const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
+  const tasks = extraTodayTasks(latestTasks).filter(
+    (task) => !sessionTaskKeys.has(taskKey(task)),
+  );
+  const items = [];
+  extraSection.hidden = tasks.length === 0;
+  extraStatus.textContent = `${tasks.length} extra`;
+  if (tasks.length === 0) {
+    extraList.textContent = "";
+    return;
+  }
+  tasks.forEach((task, index) => {
+    pushTaskItem(items, entryFromTask(task), {
+      extra: true,
+      index,
+    });
+  });
+  renderKeyedList(extraList, items, animated);
+}
+
 function renderRunTasks({ animated = false } = {}) {
   const runKeys = activeRunKeys();
   const runKeySet = new Set(runKeys);
   const items = [];
   let hiddenCount = 0;
-  listCaption.textContent = `${runKeys.length} task${
-    runKeys.length === 1 ? "" : "s"
+  const regularRunKeys = runKeys.filter((key) => !entryByKey(key)?.extra);
+  listCaption.textContent = `${regularRunKeys.length} task${
+    regularRunKeys.length === 1 ? "" : "s"
   }`;
 
   session.entries.forEach((entry, index) => {
-    if (isCrossed(entry.key)) {
+    if (entry.extra || isCrossed(entry.key)) {
       return;
     }
 
@@ -999,6 +1097,9 @@ function renderRunTasks({ animated = false } = {}) {
 
   if (hiddenCount > 0) {
     items.push(hiddenListItem(hiddenCount));
+  }
+  if (items.length === 0) {
+    items.push(emptyListItem("today-empty", "No open session tasks"));
   }
   renderKeyedList(list, items, animated);
 }
@@ -1285,6 +1386,7 @@ function patchTaskItem(item, entry, options = {}) {
   item.classList.toggle("overdue", dueDay !== "" && dueDay < currentDay);
   item.classList.toggle("due-today", dueDay === currentDay);
   item.classList.toggle("preview-task", Boolean(options.preview));
+  item.classList.toggle("extra-task", entry.extra || Boolean(options.extra));
   item.classList.toggle("tomorrow-task", Boolean(options.tomorrow));
   item.classList.toggle("session-task", Boolean(options.sessionTask));
   item.classList.toggle("marked-task", marked);
@@ -1676,7 +1778,7 @@ async function completeTaskByKey(key) {
       saveSession();
     }
     if (runFinished) {
-      const entries = openEntries();
+      const entries = orderedOpenEntries();
       if (entries.length === 0) {
         completedSession = true;
         session = defaultSession();
@@ -1809,7 +1911,7 @@ async function splitTask(event, entry) {
         nextFocusKey = activeRunKeys()[0] || session.scanCursorKey;
         saveSession();
       } else {
-        const entries = openEntries();
+        const entries = orderedOpenEntries();
         if (entries.length === 0) {
           completedSession = true;
           session = defaultSession();
@@ -1885,7 +1987,7 @@ async function deleteTask(event, entry) {
       }
       nextFocusKey = activeRunKeys()[0] || session.scanCursorKey;
       if (runFinished) {
-        const entries = openEntries();
+        const entries = orderedOpenEntries();
         if (entries.length === 0) {
           completedSession = true;
           session = defaultSession();
@@ -1959,6 +2061,9 @@ async function addTask(event) {
   if (uri !== "") {
     body.uri = uri;
   }
+  if (addingToday) {
+    body.due = "today";
+  }
   try {
     const response = await fetch("/api/tasks", {
       method: "POST",
@@ -1973,7 +2078,7 @@ async function addTask(event) {
     input.value = "";
     uriInput.value = "";
     hideUriField();
-    showStatus("Added for tomorrow");
+    showStatus(addingToday ? "Added for today" : "Added for tomorrow");
     renderApp({ animated: true });
   } catch (error) {
     showStatus(error.message);
@@ -1981,6 +2086,20 @@ async function addTask(event) {
     submit.disabled = false;
     input.focus();
   }
+}
+
+function refreshAddMode() {
+  formLabel.textContent = addingToday
+    ? "Capture extra for today"
+    : "Capture for tomorrow";
+  extraToggle.classList.toggle("active", addingToday);
+  extraToggle.setAttribute("aria-pressed", String(addingToday));
+}
+
+function toggleTodayMode() {
+  addingToday = !addingToday;
+  refreshAddMode();
+  input.focus();
 }
 
 function showUriField() {
@@ -2135,6 +2254,7 @@ function handleTaskPointerdown(event) {
 
 form.addEventListener("submit", addTask);
 uriToggle.addEventListener("click", toggleUriField);
+extraToggle.addEventListener("click", toggleTodayMode);
 refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
 resetCacheButton.addEventListener("click", resetCache);
@@ -2144,11 +2264,14 @@ document.addEventListener("click", handleDocumentClick);
 document.addEventListener("keydown", handleDocumentKeydown);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
+extraList.addEventListener("click", handleTaskClick);
+extraList.addEventListener("pointerdown", handleTaskPointerdown);
 tomorrowList.addEventListener("click", handleTaskClick);
 tomorrowList.addEventListener("pointerdown", handleTaskPointerdown);
 
 async function initApp() {
   applyColorscheme(storedColorscheme());
+  refreshAddMode();
   input.focus();
   renderApp();
   await loadWorkflowSession();

@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260610-delete-confirm">
+    <link rel="stylesheet" href="/style.css?v=20260610-extra-order">
   </head>
   <body>
     <main class="shell">
@@ -59,6 +59,7 @@
         </div>
         <div class="command-strip">
           <button id="uri-toggle" class="command-button" type="button" aria-controls="uri-field" aria-expanded="false">URI</button>
+          <button id="extra-toggle" class="command-button" type="button" aria-pressed="false">Extra</button>
         </div>
         <input id="uri-field" class="uri-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com" hidden>
       </form>
@@ -69,11 +70,23 @@
         <p id="status" hidden></p>
       </section>
 
-      <section class="list-header">
-        <h2>To-do list</h2>
-        <p id="list-caption">Ready to start</p>
-      </section>
-      <ul id="tasks" class="tasks"></ul>
+      <div class="workdeck">
+        <div class="today-column">
+          <section class="list-header">
+            <h2>To-do list</h2>
+            <p id="list-caption">Ready to start</p>
+          </section>
+          <ul id="tasks" class="tasks"></ul>
+        </div>
+
+        <aside class="extra-section" aria-labelledby="extra-heading">
+          <section class="list-header extra-header">
+            <h2 id="extra-heading">Extra today</h2>
+            <p id="extra-status">0 extra</p>
+          </section>
+          <ul id="extra-tasks" class="tasks extra-tasks"></ul>
+        </aside>
+      </div>
 
       <section class="list-header tomorrow-header">
         <h2>Future tasks</h2>
@@ -82,6 +95,6 @@
       <ul id="tomorrow-tasks" class="tasks tomorrow-tasks"></ul>
     </main>
 
-    <script src="/app.js?v=20260610-delete-confirm"></script>
+    <script src="/app.js?v=20260610-extra-order"></script>
   </body>
 </html>
