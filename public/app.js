@@ -2439,10 +2439,11 @@ async function addTask(event) {
   submit.disabled = true;
   showStatus("Adding...");
   const body = { description };
+  const submittedForToday = addingToday;
   if (uri !== "") {
     body.uri = uri;
   }
-  if (addingToday) {
+  if (submittedForToday) {
     body.due = "today";
   }
   try {
@@ -2459,7 +2460,9 @@ async function addTask(event) {
     input.value = "";
     uriInput.value = "";
     hideUriField();
-    showStatus(addingToday ? "Added for today" : "Added for tomorrow");
+    addingToday = false;
+    refreshAddMode();
+    showStatus(submittedForToday ? "Added for today" : "Added for tomorrow");
     renderApp({ animated: true });
   } catch (error) {
     showStatus(error.message);
