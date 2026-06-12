@@ -12,7 +12,10 @@ use std::{
 use anyhow::{Context, Result};
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::{
+        header::{CACHE_CONTROL, CONTENT_TYPE},
+        HeaderMap, HeaderValue, StatusCode,
+    },
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
@@ -20,10 +23,12 @@ use axum::{
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use tokio::{process::Command, time};
-use tower_http::services::ServeDir;
+use tower_http::compression::CompressionLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const MAX_DESCRIPTION_LEN: usize = 500;
+const INDEX_CACHE_CONTROL: &str = "no-cache";
+const ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
 #[derive(Clone)]
 struct AppState {
@@ -184,6 +189,14 @@ pub fn app(task: TaskConfig) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/", get(index))
+        .route("/index.html", get(index))
+        .route("/app.js", get(asset_app_js))
+        .route("/style.css", get(asset_style_css))
+        .route("/favicon.ico", get(asset_favicon_ico))
+        .route("/favicon.png", get(asset_favicon_png))
+        .route("/favicon-32.png", get(asset_favicon_32_png))
+        .route("/icon-192.png", get(asset_icon_192_png))
         .route("/api/tasks", get(tasks).post(add_task))
         .route("/api/tasks/:id", delete(delete_task))
         .route("/api/tasks/:id/complete", post(complete_task))
@@ -197,10 +210,7 @@ pub fn app(task: TaskConfig) -> Router {
                 .put(save_workflow_session)
                 .delete(clear_workflow_session),
         )
-        .nest_service(
-            "/",
-            ServeDir::new("public").append_index_html_on_directories(true),
-        )
+        .layer(CompressionLayer::new())
         .with_state(state)
 }
 
@@ -266,6 +276,64 @@ impl WorkflowConfig {
 /// Returns a basic liveness response
 async fn health() -> &'static str {
     "OK"
+}
+
+async fn index() -> Result<Response, AppError> {
+    static_file(
+        "index.html",
+        "text/html; charset=utf-8",
+        INDEX_CACHE_CONTROL,
+    )
+    .await
+}
+
+async fn asset_app_js() -> Result<Response, AppError> {
+    static_file(
+        "app.js",
+        "text/javascript; charset=utf-8",
+        ASSET_CACHE_CONTROL,
+    )
+    .await
+}
+
+async fn asset_style_css() -> Result<Response, AppError> {
+    static_file("style.css", "text/css; charset=utf-8", ASSET_CACHE_CONTROL).await
+}
+
+async fn asset_favicon_ico() -> Result<Response, AppError> {
+    static_file("favicon.ico", "image/x-icon", ASSET_CACHE_CONTROL).await
+}
+
+async fn asset_favicon_png() -> Result<Response, AppError> {
+    static_file("favicon.png", "image/png", ASSET_CACHE_CONTROL).await
+}
+
+async fn asset_favicon_32_png() -> Result<Response, AppError> {
+    static_file("favicon-32.png", "image/png", ASSET_CACHE_CONTROL).await
+}
+
+async fn asset_icon_192_png() -> Result<Response, AppError> {
+    static_file("icon-192.png", "image/png", ASSET_CACHE_CONTROL).await
+}
+
+async fn static_file(
+    filename: &str,
+    content_type: &'static str,
+    cache_control: &'static str,
+) -> Result<Response, AppError> {
+    let path = PathBuf::from("public").join(filename);
+    let body = fs::read(&path).map_err(|error| {
+        AppError::internal(format!("failed to read {}: {}", path.display(), error))
+    })?;
+
+    let mut response = body.into_response();
+    response
+        .headers_mut()
+        .insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static(cache_control));
+    Ok(response)
 }
 
 /// Syncs Taskwarrior and returns pending tasks in priority order
