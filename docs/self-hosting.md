@@ -10,7 +10,7 @@ cargo build --release
 
 Copy the release binary and `public/` directory to your deployment path.
 
-When changing `public/app.js` or `public/style.css`, update the matching query string in `public/index.html` before deploying so browsers and proxies fetch the new asset instead of a cached copy.
+When changing any cacheable frontend asset, update the matching query string in `public/index.html` before deploying. This includes `app.js`, `style.css`, favicons, and touch icons because browsers and proxies can keep immutable asset URLs for a long time.
 
 ## Runtime User
 
