@@ -801,6 +801,24 @@ button:disabled {
   box-shadow: 4px 4px 0 var(--stroke);
 }
 
+.extra-tasks li.marked-task {
+  box-shadow:
+    4px 4px 0 var(--stroke),
+    inset 0 0 0 4px var(--toolbar-bg);
+}
+
+.extra-tasks li.scan-candidate {
+  box-shadow:
+    4px 4px 0 var(--stroke),
+    inset 0 0 0 4px var(--yellow);
+}
+
+.extra-tasks li.current-task {
+  box-shadow:
+    4px 4px 0 var(--stroke),
+    inset 0 0 0 4px var(--green);
+}
+
 .extra-tasks .complete-button {
   width: 30px;
   height: 30px;

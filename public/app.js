@@ -1062,16 +1062,7 @@ function finishScan(markedKey = "") {
     return;
   }
 
-  const markedEntries = markedKeys.map(entryByKey).filter(Boolean);
-  const regularKeys = markedEntries
-    .filter((entry) => !entry.extra)
-    .map((entry) => entry.key)
-    .reverse();
-  const extraKeys = markedEntries
-    .filter((entry) => entry.extra)
-    .map((entry) => entry.key)
-    .reverse();
-  session.runKeys = [...regularKeys, ...extraKeys];
+  session.runKeys = markedKeys.slice().reverse();
   session.scanMarkedKeys = [];
   session.scanCursorKey = "";
   const focusKey = activeRunKeys()[0] || markedKey || session.runKeys[0] || "";
