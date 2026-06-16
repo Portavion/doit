@@ -340,8 +340,7 @@ async fn static_file(
 /// Syncs Taskwarrior and returns pending tasks in priority order
 async fn tasks(State(state): State<AppState>) -> Result<Json<Vec<TaskItem>>, AppError> {
     with_task_lock(&state.task, || async {
-        sync_tasks(&state.task).await?;
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -388,9 +387,7 @@ async fn add_task(
         let output = run_task(&state.task, args).await?;
         ensure_success("task add", output.status, &output.stderr)?;
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -495,9 +492,7 @@ async fn split_task(
         let output = run_task(&state.task, [id.to_string(), "delete".to_string()]).await?;
         ensure_success("task delete", output.status, &output.stderr)?;
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -511,9 +506,7 @@ async fn complete_task(
         let output = run_task(&state.task, [id.to_string(), "done".to_string()]).await?;
         ensure_success("task done", output.status, &output.stderr)?;
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -556,9 +549,7 @@ async fn delete_task(
         let output = run_task(&state.task, [id.to_string(), "delete".to_string()]).await?;
         ensure_success("task delete", output.status, &output.stderr)?;
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -586,9 +577,7 @@ async fn add_annotation(
         .await?;
         ensure_success("task annotate", output.status, &output.stderr)?;
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -639,9 +628,7 @@ async fn declare_backlog(
             ensure_success("task annotate", output.status, &output.stderr)?;
         }
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -670,9 +657,7 @@ async fn release_task(
         .await?;
         ensure_success("task modify", output.status, &output.stderr)?;
 
-        sync_tasks(&state.task).await?;
-
-        Ok(Json(list_tasks(&state.task).await?))
+        Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
 }
@@ -749,6 +734,57 @@ async fn list_tasks(config: &TaskConfig) -> Result<Vec<TaskItem>, AppError> {
     let output = run_task(config, ["status:pending", "-WAITING", "export"]).await?;
     ensure_success("task export", output.status, &output.stderr)?;
     task_items_from_export(&output.stdout)
+}
+
+async fn refresh_tasks(config: &TaskConfig) -> Result<Vec<TaskItem>, AppError> {
+    sync_tasks(config).await?;
+    normalize_extra_overdue_tasks(config).await?;
+    list_tasks(config).await
+}
+
+async fn normalize_extra_overdue_tasks(config: &TaskConfig) -> Result<(), AppError> {
+    let output = run_task(
+        config,
+        [
+            "status:pending",
+            "-WAITING",
+            "-backlog",
+            "+extra",
+            "due.before:today",
+            "uuids",
+        ],
+    )
+    .await?;
+    ensure_success("task uuids", output.status, &output.stderr)?;
+
+    for uuid in task_uuids_from_output(&output.stdout) {
+        let output = run_task(
+            config,
+            [
+                uuid,
+                "modify".to_string(),
+                "-extra".to_string(),
+                "due:today".to_string(),
+            ],
+        )
+        .await?;
+        ensure_success("task modify", output.status, &output.stderr)?;
+    }
+
+    Ok(())
+}
+
+fn task_uuids_from_output(stdout: &str) -> Vec<String> {
+    stdout
+        .split_whitespace()
+        .filter(|value| {
+            value.len() == 36
+                && value
+                    .chars()
+                    .all(|character| character.is_ascii_hexdigit() || character == '-')
+        })
+        .map(str::to_string)
+        .collect()
 }
 
 fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
@@ -1122,6 +1158,23 @@ mod tests {
                 OsString::from("due:tomorrow"),
                 OsString::from("--"),
                 OsString::from("project:Work"),
+            ]
+        );
+    }
+
+    #[test]
+    fn task_uuids_from_output_keeps_taskwarrior_uuids() {
+        let stdout = "\
+17b7e8c5-8c53-493a-a2d7-bf25d9404f51
+not-a-uuid
+28db04d9-5376-4ce4-83ca-287e50391e54
+";
+
+        assert_eq!(
+            task_uuids_from_output(stdout),
+            vec![
+                "17b7e8c5-8c53-493a-a2d7-bf25d9404f51".to_string(),
+                "28db04d9-5376-4ce4-83ca-287e50391e54".to_string(),
             ]
         );
     }
