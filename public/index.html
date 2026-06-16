@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260616-project-prefix-case">
+    <link rel="stylesheet" href="/style.css?v=20260616-project-filter">
   </head>
   <body>
     <main class="shell">
@@ -86,6 +86,11 @@
         <button id="mode-future" type="button" aria-pressed="false">Future</button>
       </nav>
 
+      <label class="project-filter" for="project-filter">
+        <span>Project</span>
+        <select id="project-filter" name="project-filter"></select>
+      </label>
+
       <div id="today-panel" class="workdeck">
         <div class="today-column">
           <section class="list-header">
@@ -121,6 +126,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=20260616-project-prefix"></script>
+    <script src="/app.js?v=20260616-project-filter"></script>
   </body>
 </html>

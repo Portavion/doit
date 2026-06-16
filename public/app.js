@@ -21,6 +21,7 @@ const tomorrowStatus = document.querySelector("#tomorrow-status");
 const modeToday = document.querySelector("#mode-today");
 const modeBacklog = document.querySelector("#mode-backlog");
 const modeFuture = document.querySelector("#mode-future");
+const projectFilter = document.querySelector("#project-filter");
 const todayPanel = document.querySelector("#today-panel");
 const backlogPanel = document.querySelector("#backlog-panel");
 const futurePanel = document.querySelector("#future-panel");
@@ -34,10 +35,12 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const legacySessionStorageKey = "doit.fpvSession.v2";
 const taskCacheStorageKey = "doit.taskCache.v1";
 const colorschemeStorageKey = "doit.colorscheme.v1";
+const projectFilterStorageKey = "doit.projectFilter.v1";
 const completeHoldMs = 850;
 let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
+let activeProject = storedProjectFilter();
 let sessions = {
   today: defaultSession("today"),
   backlog: defaultSession("backlog"),
@@ -137,6 +140,26 @@ function saveColorscheme(colorscheme) {
   applyColorscheme(colorscheme);
   try {
     localStorage.setItem(colorschemeStorageKey, colorscheme);
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
+}
+
+function storedProjectFilter() {
+  try {
+    const value = localStorage.getItem(projectFilterStorageKey);
+    if (typeof value === "string") {
+      return value.trim();
+    }
+  } catch {
+    showStatus("Browser storage is unavailable");
+  }
+  return "";
+}
+
+function saveProjectFilter() {
+  try {
+    localStorage.setItem(projectFilterStorageKey, activeProject);
   } catch {
     showStatus("Browser storage is unavailable");
   }
@@ -485,6 +508,53 @@ function taskBacklog(task) {
   return Boolean(task?.backlog);
 }
 
+function taskProject(task) {
+  if (typeof task?.project === "string" && task.project.trim() !== "") {
+    return task.project.trim();
+  }
+  return "Inbox";
+}
+
+function projectVisible(task) {
+  if (activeProject === "") {
+    return true;
+  }
+  return taskProject(task) === activeProject;
+}
+
+function visibleTasks(tasks) {
+  const visible = [];
+  for (const task of tasks) {
+    if (projectVisible(task)) {
+      visible.push(task);
+    }
+  }
+  return visible;
+}
+
+function addProject(projects, task) {
+  const project = taskProject(task);
+  if (!projects.includes(project)) {
+    projects.push(project);
+  }
+}
+
+function availableProjects() {
+  const projects = [];
+  for (const task of latestTasks) {
+    addProject(projects, task);
+  }
+  for (const mode of ["today", "backlog"]) {
+    for (const entry of sessions[mode].entries) {
+      addProject(projects, entry);
+    }
+  }
+  projects.sort(function (first, second) {
+    return first.localeCompare(second);
+  });
+  return projects;
+}
+
 function taskId(task) {
   return typeof task?.id === "number" ? task.id : null;
 }
@@ -624,7 +694,7 @@ function backlogTasks(tasks) {
 }
 
 function backlogCandidateTasks() {
-  return todayWorkTasks(latestTasks).filter((task) => {
+  return visibleTasks(todayWorkTasks(latestTasks)).filter((task) => {
     return !taskBacklog(task) && Number.isInteger(taskId(task));
   });
 }
@@ -900,9 +970,13 @@ function stopSession(message = "Stopped FPV session") {
 }
 
 function startSession() {
-  const tasks =
-    activeMode === "backlog" ? backlogTasks(latestTasks) : todayWorkTasks(latestTasks);
-  const entries = tasks.map((task) => entryFromTask(task));
+  let tasks = visibleTasks(todayWorkTasks(latestTasks));
+  if (activeMode === "backlog") {
+    tasks = visibleTasks(backlogTasks(latestTasks));
+  }
+  const entries = tasks.map(function (task) {
+    return entryFromTask(task);
+  });
   if (entries.length === 0) {
     showStatus("No tasks are ready");
     renderApp({ animated: true });
@@ -1072,6 +1146,7 @@ function startAgain(key) {
 
 function renderApp({ animated = false, focusKey = "" } = {}) {
   renderModeSwitch();
+  renderProjectFilter();
   renderSessionButton();
   renderExtraTasks({ animated });
   renderTasks({ animated });
@@ -1161,8 +1236,32 @@ function renderModeSwitch() {
   futurePanel.hidden = activeMode !== "future";
 }
 
+function renderProjectFilter() {
+  const projects = availableProjects();
+  if (activeProject !== "" && !projects.includes(activeProject)) {
+    activeProject = "";
+    saveProjectFilter();
+  }
+
+  projectFilter.textContent = "";
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = "All projects";
+  projectFilter.append(allOption);
+
+  for (const project of projects) {
+    const option = document.createElement("option");
+    option.value = project;
+    option.textContent = project;
+    projectFilter.append(option);
+  }
+
+  projectFilter.value = activeProject;
+  projectFilter.disabled = hasAnySession();
+}
+
 function renderSessionButton() {
-  const readyCount = todayWorkTasks(latestTasks).length;
+  const readyCount = visibleTasks(todayWorkTasks(latestTasks)).length;
   const openCount = hasSession() ? openEntries().length : readyCount;
   const active = scanActive() || runActive();
   sessionButton.classList.toggle("session-start", !active);
@@ -1230,7 +1329,7 @@ function renderTasks({ animated = false } = {}) {
 }
 
 function renderReadyTasks({ animated = false } = {}) {
-  const tasks = regularTodayWorkTasks(latestTasks);
+  const tasks = visibleTasks(regularTodayWorkTasks(latestTasks));
   const items = [];
   listCaption.textContent = `${tasks.length} task${
     tasks.length === 1 ? "" : "s"
@@ -1274,9 +1373,12 @@ function renderExtraTasks({ animated = false } = {}) {
   }
 
   const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
-  const tasks = extraTodayTasks(latestTasks).filter(
-    (task) => !sessionTaskKeys.has(taskKey(task)),
-  );
+  const tasks = [];
+  for (const task of visibleTasks(extraTodayTasks(latestTasks))) {
+    if (!sessionTaskKeys.has(taskKey(task))) {
+      tasks.push(task);
+    }
+  }
   const items = [];
   extraSection.hidden = tasks.length === 0;
   extraStatus.textContent = `${tasks.length} extra`;
@@ -1342,7 +1444,7 @@ function renderBacklogTasks({ animated = false } = {}) {
 }
 
 function renderReadyBacklogTasks({ animated = false } = {}) {
-  const tasks = backlogTasks(latestTasks);
+  const tasks = visibleTasks(backlogTasks(latestTasks));
   const items = [];
   backlogStatus.textContent = backlogCaption(tasks);
   if (tasks.length === 0) {
@@ -1427,9 +1529,12 @@ function renderTomorrowTasks({ animated = false } = {}) {
   }
 
   const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
-  const tasks = futureWorkTasks(latestTasks).filter(
-    (task) => !sessionTaskKeys.has(taskKey(task)),
-  );
+  const tasks = [];
+  for (const task of visibleTasks(futureWorkTasks(latestTasks))) {
+    if (!sessionTaskKeys.has(taskKey(task))) {
+      tasks.push(task);
+    }
+  }
   const items = [];
   tomorrowStatus.textContent = `${tasks.length} future`;
   if (tasks.length === 0) {
@@ -2554,6 +2659,12 @@ function handleSettingsChange(event) {
   saveColorscheme(event.target.value);
 }
 
+function handleProjectFilterChange() {
+  activeProject = projectFilter.value;
+  saveProjectFilter();
+  renderApp({ animated: true });
+}
+
 async function resetCache() {
   latestTasks = [];
   sessions = {
@@ -2561,6 +2672,7 @@ async function resetCache() {
     backlog: defaultSession("backlog"),
   };
   activeMode = "today";
+  activeProject = "";
   syncActiveSession();
   lastTouchedKey = "";
   clearAppStorage();
@@ -2665,6 +2777,7 @@ declareBacklogButton.addEventListener("click", declareBacklog);
 modeToday.addEventListener("click", () => setActiveMode("today"));
 modeBacklog.addEventListener("click", () => setActiveMode("backlog"));
 modeFuture.addEventListener("click", () => setActiveMode("future"));
+projectFilter.addEventListener("change", handleProjectFilterChange);
 resetCacheButton.addEventListener("click", resetCache);
 settingsToggle.addEventListener("click", toggleSettings);
 settingsMenu.addEventListener("change", handleSettingsChange);
