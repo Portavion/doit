@@ -61,11 +61,12 @@ Request:
 {
   "description": "Book train tickets",
   "uri": "https://example.com",
+  "project": "Personal.Travel",
   "due": "today"
 }
 ```
 
-`uri` is optional. `due` is optional and accepts `today` or `tomorrow`. `description` is trimmed, required, and limited to 500 characters.
+`uri` and `project` are optional. `project` defaults to `Inbox` and accepts dotted Taskwarrior project names such as `Work.Client`. `due` is optional and accepts `today` or `tomorrow`. `description` is trimmed, required, and limited to 500 characters.
 
 Doit adds tasks with these defaults:
 
@@ -73,7 +74,7 @@ Doit adds tasks with these defaults:
 task add project:Inbox due:tomorrow -- "Book train tickets"
 ```
 
-If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
+If `project` is provided, Doit passes `project:<value>` instead of `project:Inbox`. If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
 
 Response: the updated task list.
 

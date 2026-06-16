@@ -58,6 +58,7 @@ struct WorkflowConfig {
 struct AddTaskRequest {
     description: String,
     uri: Option<String>,
+    project: Option<String>,
     due: Option<String>,
 }
 
@@ -345,7 +346,7 @@ async fn tasks(State(state): State<AppState>) -> Result<Json<Vec<TaskItem>>, App
     .await
 }
 
-/// Adds an Inbox task, syncs Taskwarrior, and returns the updated list
+/// Adds a task, syncs Taskwarrior, and returns the updated list
 async fn add_task(
     State(state): State<AppState>,
     Json(payload): Json<AddTaskRequest>,
@@ -362,6 +363,7 @@ async fn add_task(
         .as_deref()
         .map(str::trim)
         .filter(|uri| !uri.is_empty());
+    let project = normalize_project(payload.project.as_deref())?;
     let due = match payload.due.as_deref().map(str::trim) {
         None | Some("") | Some("tomorrow") => "tomorrow",
         Some("today") => "today",
@@ -371,7 +373,7 @@ async fn add_task(
     with_task_lock(&state.task, || async {
         let mut args = vec![
             OsString::from("add"),
-            OsString::from("project:Inbox"),
+            OsString::from(format!("project:{project}")),
             OsString::from(format!("due:{due}")),
         ];
         if due == "today" {
@@ -391,6 +393,27 @@ async fn add_task(
         Ok(Json(list_tasks(&state.task).await?))
     })
     .await
+}
+
+fn normalize_project(project: Option<&str>) -> Result<String, AppError> {
+    let project = project
+        .map(str::trim)
+        .filter(|project| !project.is_empty())
+        .unwrap_or("Inbox");
+    if project.chars().count() > MAX_DESCRIPTION_LEN {
+        return Err(AppError::bad_request("project is too long"));
+    }
+    if project.starts_with('.') || project.ends_with('.') || project.contains("..") {
+        return Err(AppError::bad_request("project is invalid"));
+    }
+    if !project
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
+    {
+        return Err(AppError::bad_request("project is invalid"));
+    }
+
+    Ok(project.to_string())
 }
 
 /// Splits a pending task into smaller Inbox tasks, annotates them, and deletes the original
@@ -1101,6 +1124,29 @@ mod tests {
                 OsString::from("project:Work"),
             ]
         );
+    }
+
+    #[test]
+    fn normalize_project_defaults_to_inbox() {
+        assert_eq!(normalize_project(None).expect("project"), "Inbox");
+        assert_eq!(normalize_project(Some("  ")).expect("project"), "Inbox");
+    }
+
+    #[test]
+    fn normalize_project_accepts_nested_taskwarrior_projects() {
+        assert_eq!(
+            normalize_project(Some(" Work.Client_API-2 ")).expect("project"),
+            "Work.Client_API-2"
+        );
+    }
+
+    #[test]
+    fn normalize_project_rejects_invalid_projects() {
+        assert!(normalize_project(Some(".Work")).is_err());
+        assert!(normalize_project(Some("Work.")).is_err());
+        assert!(normalize_project(Some("Work..Client")).is_err());
+        assert!(normalize_project(Some("Work Client")).is_err());
+        assert!(normalize_project(Some("project:Work")).is_err());
     }
 
     #[test]

@@ -1,9 +1,11 @@
 const form = document.querySelector("#task-form");
 const formLabel = form.querySelector("label");
 const input = document.querySelector("#description");
-const uriToggle = document.querySelector("#uri-toggle");
+const extraFieldsToggle = document.querySelector("#extra-fields-toggle");
 const extraToggle = document.querySelector("#extra-toggle");
+const extraFields = document.querySelector("#extra-fields");
 const uriInput = document.querySelector("#uri-field");
+const projectInput = document.querySelector("#project-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const sessionButton = document.querySelector("#session");
@@ -1693,6 +1695,7 @@ function patchTaskItem(item, entry, options = {}) {
   );
   const contentKey = JSON.stringify([
     description,
+    entry.project,
     entry.uri,
     entry.annotations,
     spriteClassName,
@@ -1770,7 +1773,14 @@ function patchTaskItem(item, entry, options = {}) {
 
   content.className = "task-content";
   title.className = "task-title";
-  title.textContent = description;
+  if (entry.project !== null && entry.project !== "Inbox") {
+    const project = document.createElement("span");
+    project.className = "task-project-prefix";
+    project.textContent = `${entry.project}:`;
+    title.append(project, ` ${description}`);
+  } else {
+    title.textContent = description;
+  }
   content.append(title);
 
   if (entry.uri !== "") {
@@ -2431,6 +2441,7 @@ async function addTask(event) {
   event.preventDefault();
   const description = input.value.trim();
   const uri = uriInput.value.trim();
+  const project = projectInput.value.trim();
   if (!description) {
     showStatus("Describe the task first");
     return;
@@ -2442,6 +2453,9 @@ async function addTask(event) {
   const submittedForToday = addingToday;
   if (uri !== "") {
     body.uri = uri;
+  }
+  if (project !== "") {
+    body.project = project;
   }
   if (submittedForToday) {
     body.due = "today";
@@ -2459,7 +2473,8 @@ async function addTask(event) {
     }
     input.value = "";
     uriInput.value = "";
-    hideUriField();
+    projectInput.value = "";
+    hideExtraFields();
     addingToday = false;
     refreshAddMode();
     showStatus(submittedForToday ? "Added for today" : "Added for tomorrow");
@@ -2486,27 +2501,27 @@ function toggleTodayMode() {
   input.focus();
 }
 
-function showUriField() {
-  uriInput.hidden = false;
-  uriToggle.classList.add("active");
-  uriToggle.setAttribute("aria-expanded", "true");
+function showExtraFields() {
+  extraFields.hidden = false;
+  extraFieldsToggle.classList.add("active");
+  extraFieldsToggle.setAttribute("aria-expanded", "true");
   uriInput.focus();
 }
 
-function hideUriField() {
-  uriInput.hidden = true;
-  uriToggle.classList.remove("active");
-  uriToggle.setAttribute("aria-expanded", "false");
+function hideExtraFields() {
+  extraFields.hidden = true;
+  extraFieldsToggle.classList.remove("active");
+  extraFieldsToggle.setAttribute("aria-expanded", "false");
 }
 
-function toggleUriField() {
-  if (uriInput.hidden) {
-    showUriField();
+function toggleExtraFields() {
+  if (extraFields.hidden) {
+    showExtraFields();
     return;
   }
 
-  if (uriInput.value.trim() === "") {
-    hideUriField();
+  if (uriInput.value.trim() === "" && projectInput.value.trim() === "") {
+    hideExtraFields();
     input.focus();
     return;
   }
@@ -2642,7 +2657,7 @@ function handleTaskPointerdown(event) {
 }
 
 form.addEventListener("submit", addTask);
-uriToggle.addEventListener("click", toggleUriField);
+extraFieldsToggle.addEventListener("click", toggleExtraFields);
 extraToggle.addEventListener("click", toggleTodayMode);
 refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);

@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260612-perf">
+    <link rel="stylesheet" href="/style.css?v=20260616-project-prefix-case">
   </head>
   <body>
     <main class="shell">
@@ -59,10 +59,19 @@
           <button id="submit" type="submit">Add</button>
         </div>
         <div class="command-strip">
-          <button id="uri-toggle" class="command-button" type="button" aria-controls="uri-field" aria-expanded="false">URI</button>
+          <button id="extra-fields-toggle" class="command-button" type="button" aria-controls="extra-fields" aria-expanded="false">...</button>
           <button id="extra-toggle" class="command-button" type="button" aria-pressed="false">Extra</button>
         </div>
-        <input id="uri-field" class="uri-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com" hidden>
+        <div id="extra-fields" class="extra-fields" hidden>
+          <label class="extra-field" for="uri-field">
+            URI
+            <input id="uri-field" class="extra-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com">
+          </label>
+          <label class="extra-field" for="project-field">
+            Project
+            <input id="project-field" class="extra-input" name="project" autocomplete="off" placeholder="Inbox">
+          </label>
+        </div>
       </form>
 
       <section class="toolbar">
@@ -112,6 +121,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=20260612-extra-reset"></script>
+    <script src="/app.js?v=20260616-project-prefix"></script>
   </body>
 </html>

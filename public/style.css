@@ -401,8 +401,22 @@ label {
   color: var(--button-text);
 }
 
-.uri-input {
+.extra-fields {
+  display: grid;
+  gap: 10px;
   margin-top: 8px;
+}
+
+.extra-field {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.extra-input {
   padding: 9px 12px;
   color: var(--input-text);
   font-size: 12px;
@@ -798,6 +812,12 @@ button:disabled {
 .crossed-task .task-title {
   text-decoration: line-through;
   text-decoration-thickness: 3px;
+}
+
+.task-project-prefix {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .task-actions {
