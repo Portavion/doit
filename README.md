@@ -94,7 +94,7 @@ Doit also passes non-interactive Taskwarrior overrides for confirmation prompts 
 
 - `GET /health` returns `OK`
 - `GET /api/tasks` optionally runs `task sync`, exports pending non-waiting tasks, and returns JSON
-- `POST /api/tasks` accepts `{ "description": "...", "uri": "https://example.com", "project": "Work.Client", "due": "today" }`, adds a task due tomorrow or extra today, optionally syncs, and returns the updated task list
+- `POST /api/tasks` accepts `{ "description": "...", "uri": "https://example.com", "project": "Work.Client", "due": "today", "wait": "2026-06-18" }`, adds a task due tomorrow or extra today, optionally syncs, and returns the updated task list
 - `POST /api/backlog/declare` accepts `{ "ids": [12, 13] }`, tags selected tasks with `+backlog`, optionally syncs, and returns the updated task list
 - `POST /api/tasks/:id/release` removes `+backlog`, moves the task to tomorrow, optionally syncs, and returns the updated task list
 - `POST /api/tasks/:id/complete` marks a task done, optionally syncs, and returns the updated task list

@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260616-fpv-extra-highlight">
+    <link rel="stylesheet" href="/style.css?v=20260617-wait">
   </head>
   <body>
     <main class="shell">
@@ -71,6 +71,10 @@
             Project
             <input id="project-field" class="extra-input" name="project" autocomplete="off" placeholder="Inbox">
           </label>
+          <fieldset class="extra-field wait-field">
+            <legend>Wait</legend>
+            <input id="wait-field" class="extra-input" name="wait" type="date">
+          </fieldset>
         </div>
       </form>
 
@@ -123,9 +127,16 @@
           <p id="tomorrow-status">0 future</p>
         </section>
         <ul id="tomorrow-tasks" class="tasks tomorrow-tasks"></ul>
+        <section class="waiting-section" aria-labelledby="waiting-heading">
+          <section class="list-header waiting-header">
+            <h2 id="waiting-heading">Waiting</h2>
+            <p id="waiting-status">0 waiting</p>
+          </section>
+          <ul id="waiting-tasks" class="tasks waiting-tasks"></ul>
+        </section>
       </section>
     </main>
 
-    <script src="/app.js?v=20260616-fpv-extra-order"></script>
+    <script src="/app.js?v=20260617-wait"></script>
   </body>
 </html>

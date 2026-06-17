@@ -60,6 +60,7 @@ struct AddTaskRequest {
     uri: Option<String>,
     project: Option<String>,
     due: Option<String>,
+    wait: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -90,6 +91,7 @@ struct TaskItem {
     uuid: Option<String>,
     project: Option<String>,
     due: Option<String>,
+    wait: Option<String>,
     uri: Option<String>,
     tags: Vec<String>,
     urg: Option<f64>,
@@ -103,6 +105,7 @@ struct TaskExportItem {
     uuid: Option<String>,
     project: Option<String>,
     due: Option<String>,
+    wait: Option<String>,
     uri: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
@@ -204,6 +207,8 @@ pub fn app(task: TaskConfig) -> Router {
         .route("/api/tasks/:id/annotations", post(add_annotation))
         .route("/api/tasks/:id/release", post(release_task))
         .route("/api/tasks/:id/split", post(split_task))
+        .route("/api/tasks/:id/wait", delete(clear_wait_task))
+        .route("/api/waiting", get(waiting_tasks))
         .route("/api/backlog/declare", post(declare_backlog))
         .route(
             "/api/workflow-session",
@@ -345,6 +350,15 @@ async fn tasks(State(state): State<AppState>) -> Result<Json<Vec<TaskItem>>, App
     .await
 }
 
+/// Syncs Taskwarrior and returns pending waiting tasks
+async fn waiting_tasks(State(state): State<AppState>) -> Result<Json<Vec<TaskItem>>, AppError> {
+    with_task_lock(&state.task, || async {
+        sync_tasks(&state.task).await?;
+        Ok(Json(list_waiting_tasks(&state.task).await?))
+    })
+    .await
+}
+
 /// Adds a task, syncs Taskwarrior, and returns the updated list
 async fn add_task(
     State(state): State<AppState>,
@@ -368,6 +382,12 @@ async fn add_task(
         Some("today") => "today",
         Some(_) => return Err(AppError::bad_request("due must be today or tomorrow")),
     };
+    let wait = payload
+        .wait
+        .as_deref()
+        .map(normalize_optional_wait_value)
+        .transpose()?
+        .flatten();
 
     with_task_lock(&state.task, || async {
         let mut args = vec![
@@ -380,6 +400,9 @@ async fn add_task(
         }
         if let Some(uri) = uri {
             args.push(OsString::from(format!("uri:{uri}")));
+        }
+        if let Some(wait) = wait {
+            args.push(OsString::from(format!("wait:{wait}")));
         }
         args.push(OsString::from("--"));
         args.push(OsString::from(description));
@@ -411,6 +434,29 @@ fn normalize_project(project: Option<&str>) -> Result<String, AppError> {
     }
 
     Ok(project.to_string())
+}
+
+fn normalize_wait_value(wait: &str) -> Result<String, AppError> {
+    let wait = wait.trim();
+    if wait.is_empty() {
+        return Err(AppError::bad_request("wait cannot be empty"));
+    }
+    if wait.chars().count() > MAX_DESCRIPTION_LEN {
+        return Err(AppError::bad_request("wait is too long"));
+    }
+    if wait.chars().any(char::is_whitespace) {
+        return Err(AppError::bad_request("wait cannot contain whitespace"));
+    }
+
+    Ok(wait.to_string())
+}
+
+fn normalize_optional_wait_value(wait: &str) -> Result<Option<String>, AppError> {
+    let wait = wait.trim();
+    if wait.is_empty() {
+        return Ok(None);
+    }
+    normalize_wait_value(wait).map(Some)
 }
 
 /// Splits a pending task into smaller Inbox tasks, annotates them, and deletes the original
@@ -548,6 +594,24 @@ async fn delete_task(
 
         let output = run_task(&state.task, [id.to_string(), "delete".to_string()]).await?;
         ensure_success("task delete", output.status, &output.stderr)?;
+
+        Ok(Json(refresh_tasks(&state.task).await?))
+    })
+    .await
+}
+
+/// Clears a pending task wait date, syncs Taskwarrior, and returns the updated list
+async fn clear_wait_task(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<Vec<TaskItem>>, AppError> {
+    with_task_lock(&state.task, || async {
+        let output = run_task(
+            &state.task,
+            [id.to_string(), "modify".to_string(), "wait:".to_string()],
+        )
+        .await?;
+        ensure_success("task modify", output.status, &output.stderr)?;
 
         Ok(Json(refresh_tasks(&state.task).await?))
     })
@@ -736,6 +800,12 @@ async fn list_tasks(config: &TaskConfig) -> Result<Vec<TaskItem>, AppError> {
     task_items_from_export(&output.stdout)
 }
 
+async fn list_waiting_tasks(config: &TaskConfig) -> Result<Vec<TaskItem>, AppError> {
+    let output = run_task(config, ["+WAITING", "export"]).await?;
+    ensure_success("task export", output.status, &output.stderr)?;
+    task_items_from_export(&output.stdout)
+}
+
 async fn refresh_tasks(config: &TaskConfig) -> Result<Vec<TaskItem>, AppError> {
     sync_tasks(config).await?;
     normalize_extra_overdue_tasks(config).await?;
@@ -802,6 +872,7 @@ fn task_items_from_export(stdout: &str) -> Result<Vec<TaskItem>, AppError> {
                 uuid: task.uuid,
                 project: task.project,
                 due: task.due,
+                wait: task.wait,
                 uri,
                 tags: task.tags,
                 urg: task.urgency,
@@ -1203,6 +1274,30 @@ not-a-uuid
     }
 
     #[test]
+    fn normalize_wait_value_accepts_taskwarrior_date_tokens() {
+        assert_eq!(
+            normalize_wait_value(" 2026-06-18 ").expect("wait"),
+            "2026-06-18"
+        );
+        assert_eq!(normalize_wait_value("+1week").expect("wait"), "+1week");
+    }
+
+    #[test]
+    fn normalize_wait_value_rejects_empty_or_spaced_values() {
+        assert!(normalize_wait_value("").is_err());
+        assert!(normalize_wait_value("this weekend").is_err());
+    }
+
+    #[test]
+    fn normalize_optional_wait_value_allows_empty_creation_field() {
+        assert_eq!(normalize_optional_wait_value("").expect("wait"), None);
+        assert_eq!(
+            normalize_optional_wait_value(" 2026-06-18 ").expect("wait"),
+            Some("2026-06-18".to_string())
+        );
+    }
+
+    #[test]
     fn taskrc_home_uses_absolute_taskrc_parent() {
         assert_eq!(
             taskrc_home(std::path::Path::new("/home/alice/.taskrc")),
@@ -1293,6 +1388,20 @@ not-a-uuid
         assert_eq!(items[1].description, "Alpha task");
         assert_eq!(items[1].uri.as_deref(), Some("https://example.com/alpha"));
         assert_eq!(items[1].tags, vec!["extra".to_string()]);
+    }
+
+    #[test]
+    fn task_items_from_export_parses_and_serializes_wait() {
+        let stdout = r#"[
+{"id":1,"description":"Waiting task","project":"Inbox","wait":"20260618T000000Z","due":"20260630T000000Z","tags":["waiting"],"urgency":2.5}
+]"#;
+
+        let items = task_items_from_export(stdout).expect("valid export");
+        let body = serde_json::to_value(&items).expect("json");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].wait.as_deref(), Some("20260618T000000Z"));
+        assert_eq!(body[0]["wait"], "20260618T000000Z");
     }
 
     #[test]

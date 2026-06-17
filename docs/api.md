@@ -38,6 +38,7 @@ Response:
     "uuid": "b470e4fb-bca3-4416-8076-67998818ea05",
     "project": "Inbox",
     "due": "20260604T000000Z",
+    "wait": null,
     "uri": "https://example.com",
     "tags": ["extra", "backlog"],
     "urg": 9.5
@@ -45,8 +46,24 @@ Response:
 ]
 ```
 
-Tasks with empty descriptions are filtered out. Results are sorted by urgency descending.
+`wait` is included when Taskwarrior exports a wait date. Tasks with empty descriptions are filtered out. Results are sorted by urgency descending.
 `uuid` is read from Taskwarrior export and is stable across devices; Doit uses it for workflow state when available.
+
+## List Waiting Tasks
+
+```http
+GET /api/waiting
+```
+
+When `TASK_SYNC` is enabled, Doit runs `task sync` first. It then runs:
+
+```sh
+task +WAITING export
+```
+
+Response: the same task item shape as `GET /api/tasks`, including `wait`.
+
+Taskwarrior hides waiting tasks from most reports until their wait date passes, so Doit keeps them out of the main task list and exposes them separately for the Future view.
 
 ## Add Task
 
@@ -62,11 +79,12 @@ Request:
   "description": "Book train tickets",
   "uri": "https://example.com",
   "project": "Personal.Travel",
-  "due": "today"
+  "due": "today",
+  "wait": "2026-06-18"
 }
 ```
 
-`uri` and `project` are optional. `project` defaults to `Inbox` and accepts dotted Taskwarrior project names such as `Work.Client`. `due` is optional and accepts `today` or `tomorrow`. `description` is trimmed, required, and limited to 500 characters.
+`uri`, `project`, and `wait` are optional. `project` defaults to `Inbox` and accepts dotted Taskwarrior project names such as `Work.Client`. `due` is optional and accepts `today` or `tomorrow`. `wait` is trimmed, limited to 500 characters, and cannot contain whitespace. `description` is trimmed, required, and limited to 500 characters.
 
 Doit adds tasks with these defaults:
 
@@ -74,9 +92,23 @@ Doit adds tasks with these defaults:
 task add project:Inbox due:tomorrow -- "Book train tickets"
 ```
 
-If `project` is provided, Doit passes `project:<value>` instead of `project:Inbox`. If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior.
+If `project` is provided, Doit passes `project:<value>` instead of `project:Inbox`. If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior. If `wait` is provided, Doit passes `wait:<value>` when creating the task.
 
 Response: the updated task list.
+
+## Clear Task Wait
+
+```http
+DELETE /api/tasks/:id/wait
+```
+
+Clears the wait date with:
+
+```sh
+task <id> modify wait:
+```
+
+Response: the updated non-waiting task list.
 
 ## Declare Backlog
 

@@ -417,6 +417,15 @@ label {
   text-transform: uppercase;
 }
 
+.wait-field {
+  border: 0;
+  padding: 0;
+}
+
+.wait-field legend {
+  padding: 0;
+}
+
 .extra-input {
   padding: 9px 12px;
   color: var(--input-text);
@@ -579,6 +588,14 @@ button:disabled {
 
 .tomorrow-header {
   margin-top: 0;
+}
+
+.waiting-section {
+  margin-top: 22px;
+}
+
+.waiting-header h2 {
+  font-size: 16px;
 }
 
 .workdeck {
@@ -770,6 +787,38 @@ button:disabled {
 
 .tomorrow-tasks li {
   --task-bg: var(--tomorrow-bg);
+}
+
+.waiting-tasks li.waiting-task {
+  --task-bg: var(--hidden-bg);
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.waiting-task .task-content {
+  grid-column: 2;
+  text-align: left;
+}
+
+.waiting-controls {
+  grid-column: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.waiting-controls button {
+  min-width: 104px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.task-meta {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .tasks li.due-today {
@@ -1113,6 +1162,7 @@ button:disabled {
   .task-actions button:not(:disabled):hover,
   .split-form button:not(:disabled):hover,
   .delete-form button:not(:disabled):hover,
+  .waiting-controls button:not(:disabled):hover,
   .annotation-form button:not(:disabled):hover {
     background: color-mix(in srgb, var(--button-bg) 86%, black);
     box-shadow: 5px 5px 0 var(--stroke);
@@ -1900,6 +1950,19 @@ button:disabled {
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
+  }
+
+  .waiting-tasks li.waiting-task {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .waiting-controls {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .waiting-controls button {
+    flex: 1 1 130px;
   }
 
   .tasks li.holding,

@@ -6,6 +6,7 @@ const extraToggle = document.querySelector("#extra-toggle");
 const extraFields = document.querySelector("#extra-fields");
 const uriInput = document.querySelector("#uri-field");
 const projectInput = document.querySelector("#project-field");
+const waitInput = document.querySelector("#wait-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const sessionButton = document.querySelector("#session");
@@ -18,6 +19,7 @@ const listCaption = document.querySelector("#list-caption");
 const extraStatus = document.querySelector("#extra-status");
 const backlogStatus = document.querySelector("#backlog-status");
 const tomorrowStatus = document.querySelector("#tomorrow-status");
+const waitingStatus = document.querySelector("#waiting-status");
 const modeToday = document.querySelector("#mode-today");
 const modeBacklog = document.querySelector("#mode-backlog");
 const modeFuture = document.querySelector("#mode-future");
@@ -30,6 +32,7 @@ const extraSection = document.querySelector(".extra-section");
 const extraList = document.querySelector("#extra-tasks");
 const backlogList = document.querySelector("#backlog-tasks");
 const tomorrowList = document.querySelector("#tomorrow-tasks");
+const waitingList = document.querySelector("#waiting-tasks");
 const coarsePointer = window.matchMedia("(pointer: coarse)");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const legacySessionStorageKey = "doit.fpvSession.v2";
@@ -40,6 +43,7 @@ const completeHoldMs = 850;
 let completingTaskKey = null;
 let lastTouchedKey = "";
 let latestTasks = loadTaskCache();
+let latestWaitingTasks = [];
 let activeProject = storedProjectFilter();
 let sessions = {
   today: defaultSession("today"),
@@ -207,6 +211,7 @@ function normalizeEntry(entry) {
     description,
     project: typeof entry.project === "string" ? entry.project : null,
     due: typeof entry.due === "string" ? entry.due : null,
+    wait: typeof entry.wait === "string" ? entry.wait : null,
     dueDay: typeof entry.dueDay === "string" ? entry.dueDay : "",
     uri: typeof entry.uri === "string" ? entry.uri : "",
     annotations: normalizeAnnotations(entry.annotations),
@@ -460,15 +465,27 @@ function normalizeAnnotations(annotations) {
 }
 
 function dueDateKey(task) {
-  if (typeof task?.due !== "string") {
+  return taskDateKey(task?.due);
+}
+
+function waitDateKey(task) {
+  return taskDateKey(task?.wait);
+}
+
+function taskDateKey(value) {
+  if (typeof value !== "string") {
     return "";
   }
 
-  const match = task.due.match(
+  const match = value.match(
     /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
   );
   if (!match) {
-    return task.due.slice(0, 8);
+    const day = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (day) {
+      return `${day[1]}${day[2]}${day[3]}`;
+    }
+    return value.slice(0, 8).replaceAll("-", "");
   }
 
   const [, year, month, day, hour, minute, second] = match;
@@ -544,6 +561,9 @@ function availableProjects() {
   for (const task of latestTasks) {
     addProject(projects, task);
   }
+  for (const task of latestWaitingTasks) {
+    addProject(projects, task);
+  }
   for (const mode of ["today", "backlog"]) {
     for (const entry of sessions[mode].entries) {
       addProject(projects, entry);
@@ -600,6 +620,7 @@ function entryFromTask(task, key = taskKey(task)) {
     description: taskDescription(task),
     project: typeof task?.project === "string" ? task.project : null,
     due: typeof task?.due === "string" ? task.due : null,
+    wait: typeof task?.wait === "string" ? task.wait : null,
     dueDay: dueDateKey(task),
     uri: taskUri(task),
     annotations: normalizeAnnotations(task?.annotations),
@@ -689,6 +710,17 @@ function futureWorkTasks(tasks) {
   });
 }
 
+function waitingWorkTasks(tasks) {
+  return visibleTasks(tasks).sort(function (first, second) {
+    const firstWait = waitDateKey(first);
+    const secondWait = waitDateKey(second);
+    if (firstWait !== secondWait) {
+      return firstWait.localeCompare(secondWait);
+    }
+    return dueDateKey(first).localeCompare(dueDateKey(second));
+  });
+}
+
 function backlogTasks(tasks) {
   return tasks.filter(taskBacklog);
 }
@@ -716,6 +748,9 @@ function backlogCaption(tasks) {
 }
 
 function shortDateLabel(date) {
+  if (/^\d{8}$/.test(date)) {
+    date = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
+  }
   const [year, month, day] = date.split("-").map(Number);
   if (!year || !month || !day) {
     return date;
@@ -901,6 +936,7 @@ function reconcileSession(tasks) {
       "description",
       "project",
       "due",
+      "wait",
       "dueDay",
       "uri",
       "annotations",
@@ -1143,6 +1179,7 @@ function renderApp({ animated = false, focusKey = "" } = {}) {
   renderTasks({ animated });
   renderBacklogTasks({ animated });
   renderTomorrowTasks({ animated });
+  renderWaitingTasks({ animated });
   if (animated) {
     scrollToTask(focusKey);
   }
@@ -1542,6 +1579,28 @@ function renderTomorrowTasks({ animated = false } = {}) {
   renderKeyedList(tomorrowList, items, animated);
 }
 
+function renderWaitingTasks({ animated = false } = {}) {
+  if (activeMode !== "future") {
+    waitingList.textContent = "";
+    return;
+  }
+
+  const tasks = waitingWorkTasks(latestWaitingTasks);
+  waitingStatus.textContent = `${tasks.length} waiting`;
+
+  const items = [];
+  if (tasks.length === 0) {
+    items.push(emptyListItem("waiting-empty", "No waiting tasks"));
+    renderKeyedList(waitingList, items, animated);
+    return;
+  }
+
+  tasks.forEach(function (task, index) {
+    items.push(waitingListItem(entryFromTask(task), index));
+  });
+  renderKeyedList(waitingList, items, animated);
+}
+
 function pushTaskItem(items, entry, options = {}) {
   const current = currentRunEntry();
   const candidate = scanCandidateEntry();
@@ -1596,6 +1655,15 @@ function hiddenListItem(count) {
     key: "hidden:undotted",
     type: "hidden",
     count,
+  };
+}
+
+function waitingListItem(entry, index) {
+  return {
+    key: `waiting:${entry.taskKey || entry.key}`,
+    type: "waiting",
+    entry,
+    index,
   };
 }
 
@@ -1657,6 +1725,10 @@ function patchListNode(node, item) {
   }
   if (item.type === "annotation") {
     patchAnnotationItem(node, item.entry);
+    return;
+  }
+  if (item.type === "waiting") {
+    patchWaitingItem(node, item.entry, item.index);
     return;
   }
   if (item.type === "hidden") {
@@ -1889,11 +1961,76 @@ function patchTaskItem(item, entry, options = {}) {
     link.rel = "noreferrer";
     content.append(link);
   }
-
   item.append(dot, sprite, content);
   if (canQuickComplete) {
     item.append(completeButton(entry, completingTaskKey === entry.key));
   }
+}
+
+function patchWaitingItem(item, entry, index) {
+  const description = entry.description;
+  const waitDay = waitDateKey(entry);
+  const dueDay = entry.dueDay || dueDateKey(entry);
+  const contentKey = JSON.stringify([
+    description,
+    entry.project,
+    entry.wait,
+    entry.due,
+  ]);
+
+  item.className = "task-item waiting-task";
+  item.style.setProperty("--task-index", String(index || 0));
+  item.dataset.taskKey = entry.key;
+  if (item.dataset.contentKey === contentKey) {
+    return;
+  }
+
+  const dot = document.createElement("span");
+  const content = document.createElement("span");
+  const title = document.createElement("span");
+  const meta = document.createElement("span");
+  const controls = document.createElement("span");
+  const release = document.createElement("button");
+
+  item.dataset.contentKey = contentKey;
+  item.textContent = "";
+
+  dot.className = "task-dot";
+  dot.setAttribute("aria-hidden", "true");
+
+  content.className = "task-content";
+  title.className = "task-title";
+  if (entry.project !== null && entry.project !== "Inbox") {
+    const project = document.createElement("span");
+    project.className = "task-project-prefix";
+    project.textContent = `${entry.project}:`;
+    title.append(project, ` ${description}`);
+  } else {
+    title.textContent = description;
+  }
+
+  meta.className = "task-meta";
+  meta.textContent = `Wait ${dateLabel(waitDay)} · Due ${dateLabel(dueDay)}`;
+  content.append(title, meta);
+
+  controls.className = "waiting-controls";
+  release.type = "button";
+  release.className = "secondary-action";
+  release.textContent = "Release";
+  release.disabled = entry.id === null;
+  release.addEventListener("click", function () {
+    clearTaskWait(entry);
+  });
+
+  controls.append(release);
+  item.append(dot, content, controls);
+}
+
+function dateLabel(day) {
+  if (day === "") {
+    return "none";
+  }
+  return shortDateLabel(day);
 }
 
 function patchAnnotationItem(annotationItem, entry) {
@@ -2012,9 +2149,9 @@ function patchActionItem(actionItem, entry, state) {
     }
     if (openMoreKeys.has(entry.key)) {
       actions.append(
-        createAction("Delete task", "danger-action", () =>
-          openDeleteForm(entry.key),
-        ),
+        createAction("Delete task", "danger-action", function () {
+          openDeleteForm(entry.key);
+        }),
       );
     }
     if (openSplitKeys.has(entry.key)) {
@@ -2155,6 +2292,23 @@ function deleteForm(entry) {
   form.append(question, reasonLabel, confirmationLabel, controls);
   requestAnimationFrame(() => reason.focus());
   return form;
+}
+
+function inputDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateAfterDays(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function refreshAddWaitMin() {
+  waitInput.min = inputDateValue(dateAfterDays(1));
 }
 
 function isMarked(key) {
@@ -2513,12 +2667,42 @@ async function releaseTask(entry) {
   }
 }
 
+async function refreshWaitingTasks() {
+  const response = await fetch("/api/waiting", { cache: "no-store" });
+  latestWaitingTasks = normalizeTasks(await parseResponse(response));
+}
+
+async function clearTaskWait(entry) {
+  if (entry.id === null) {
+    return;
+  }
+
+  showStatus("Releasing waiting task...");
+  try {
+    const response = await fetch(`/api/tasks/${entry.id}/wait`, {
+      method: "DELETE",
+    });
+    latestTasks = normalizeTasks(await parseResponse(response));
+    saveTaskCache(latestTasks);
+    await refreshWaitingTasks();
+    showStatus("Released");
+    renderApp({ animated: true, focusKey: entry.key });
+  } catch (error) {
+    showStatus(error.message);
+    renderApp({ animated: true, focusKey: entry.key });
+  }
+}
+
 async function loadTasks() {
   refresh.disabled = true;
   showStatus("Loading tasks...");
   try {
-    const response = await fetch("/api/tasks", { cache: "no-store" });
-    latestTasks = normalizeTasks(await parseResponse(response));
+    const responses = await Promise.all([
+      fetch("/api/tasks", { cache: "no-store" }),
+      fetch("/api/waiting", { cache: "no-store" }),
+    ]);
+    latestTasks = normalizeTasks(await parseResponse(responses[0]));
+    latestWaitingTasks = normalizeTasks(await parseResponse(responses[1]));
     saveTaskCache(latestTasks);
     if (reconcileSessions(latestTasks)) {
       saveSession();
@@ -2538,6 +2722,7 @@ async function addTask(event) {
   const description = input.value.trim();
   const uri = uriInput.value.trim();
   const project = projectInput.value.trim();
+  const wait = waitInput.value.trim();
   if (!description) {
     showStatus("Describe the task first");
     return;
@@ -2553,6 +2738,9 @@ async function addTask(event) {
   if (project !== "") {
     body.project = project;
   }
+  if (wait !== "") {
+    body.wait = wait;
+  }
   if (submittedForToday) {
     body.due = "today";
   }
@@ -2564,16 +2752,24 @@ async function addTask(event) {
     });
     latestTasks = normalizeTasks(await parseResponse(response));
     saveTaskCache(latestTasks);
+    if (wait !== "") {
+      await refreshWaitingTasks();
+    }
     if (reconcileSessions(latestTasks)) {
       saveSession();
     }
     input.value = "";
     uriInput.value = "";
     projectInput.value = "";
+    waitInput.value = "";
     hideExtraFields();
     addingToday = false;
     refreshAddMode();
-    showStatus(submittedForToday ? "Added for today" : "Added for tomorrow");
+    if (wait !== "") {
+      showStatus("Added waiting task");
+    } else {
+      showStatus(submittedForToday ? "Added for today" : "Added for tomorrow");
+    }
     renderApp({ animated: true });
   } catch (error) {
     showStatus(error.message);
@@ -2616,7 +2812,11 @@ function toggleExtraFields() {
     return;
   }
 
-  if (uriInput.value.trim() === "" && projectInput.value.trim() === "") {
+  if (
+    uriInput.value.trim() === "" &&
+    projectInput.value.trim() === "" &&
+    waitInput.value.trim() === ""
+  ) {
     hideExtraFields();
     input.focus();
     return;
@@ -2658,6 +2858,7 @@ function handleProjectFilterChange() {
 
 async function resetCache() {
   latestTasks = [];
+  latestWaitingTasks = [];
   sessions = {
     today: defaultSession("today"),
     backlog: defaultSession("backlog"),
@@ -2706,6 +2907,7 @@ function handleTaskPointerdown(event) {
     !item ||
     event.target.closest(".complete-button") ||
     event.target.closest(".annotation-character") ||
+    event.target.closest("button") ||
     event.target.closest("a") ||
     !coarsePointer.matches ||
     event.pointerType === "mouse"
@@ -2785,6 +2987,7 @@ tomorrowList.addEventListener("pointerdown", handleTaskPointerdown);
 
 async function initApp() {
   applyColorscheme(storedColorscheme());
+  refreshAddWaitMin();
   refreshAddMode();
   input.focus();
   renderApp();
