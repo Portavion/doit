@@ -10,6 +10,7 @@ const waitInput = document.querySelector("#wait-field");
 const submit = document.querySelector("#submit");
 const refresh = document.querySelector("#refresh");
 const sessionButton = document.querySelector("#session");
+const luckyButton = document.querySelector("#lucky");
 const declareBacklogButton = document.querySelector("#declare-backlog");
 const resetCacheButton = document.querySelector("#reset-cache");
 const settingsToggle = document.querySelector("#settings-toggle");
@@ -1028,6 +1029,43 @@ function startSession() {
   beginPass(entries, "Session started");
 }
 
+function startLuckySession() {
+  if (activeMode !== "today" || scanActive() || runActive()) {
+    return;
+  }
+
+  let entries = orderedOpenEntries();
+  if (!hasSession()) {
+    const tasks = visibleTasks(todayWorkTasks(latestTasks));
+    entries = tasks.map(function (task) {
+      return entryFromTask(task);
+    });
+    sessions.today = {
+      ...defaultSession("today"),
+      startedAt: new Date().toISOString(),
+      entries,
+    };
+    syncActiveSession();
+  }
+
+  if (entries.length === 0) {
+    showStatus("No tasks are ready");
+    renderApp({ animated: true });
+    return;
+  }
+
+  for (const entry of entries) {
+    entry.waiting = false;
+  }
+  const luckyEntry = entries[Math.floor(Math.random() * entries.length)];
+  session.scanMarkedKeys = [];
+  session.scanCursorKey = "";
+  session.runKeys = [luckyEntry.key];
+  saveSession();
+  showStatus("Picked a task");
+  renderApp({ animated: true, focusKey: luckyEntry.key });
+}
+
 function beginPass(entries, message) {
   if (session.mode !== "backlog") {
     entries = extraLast(entries);
@@ -1291,12 +1329,15 @@ function renderProjectFilter() {
 function renderSessionButton() {
   const readyCount = visibleTasks(todayWorkTasks(latestTasks)).length;
   const openCount = hasSession() ? openEntries().length : readyCount;
+  const luckyCount = hasSession() ? orderedOpenEntries().length : readyCount;
   const active = scanActive() || runActive();
   sessionButton.classList.toggle("session-start", !active);
   sessionButton.classList.toggle("session-stop", active);
   sessionButton.hidden = activeMode !== "today";
   sessionButton.disabled =
     activeMode !== "today" || (openCount === 0 && readyCount === 0 && !active);
+  luckyButton.hidden = activeMode !== "today";
+  luckyButton.disabled = activeMode !== "today" || active || luckyCount === 0;
   declareBacklogButton.disabled = backlogCandidateTasks().length === 0;
 
   if (active) {
@@ -2966,6 +3007,7 @@ extraFieldsToggle.addEventListener("click", toggleExtraFields);
 extraToggle.addEventListener("click", toggleTodayMode);
 refresh.addEventListener("click", loadTasks);
 sessionButton.addEventListener("click", handleSessionButton);
+luckyButton.addEventListener("click", startLuckySession);
 declareBacklogButton.addEventListener("click", declareBacklog);
 modeToday.addEventListener("click", () => setActiveMode("today"));
 modeBacklog.addEventListener("click", () => setActiveMode("backlog"));
