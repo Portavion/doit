@@ -333,7 +333,7 @@ function resetSessionAfterIssue(message = "Workflow session reset") {
   renderApp({ animated: true });
 }
 
-async function loadWorkflowSession() {
+async function loadWorkflowSession({ animated = true } = {}) {
   try {
     const response = await fetch("/api/workflow-session", { cache: "no-store" });
     const body = await parseResponse(response);
@@ -346,7 +346,7 @@ async function loadWorkflowSession() {
       await clearWorkflowSession();
       showStatus("Workflow session reset");
     }
-    renderApp({ animated: true, focusKey: session.scanCursorKey });
+    renderApp({ animated, focusKey: session.scanCursorKey });
   } catch {
     resetSessionAfterIssue();
   }
@@ -1417,6 +1417,7 @@ function renderReadyTasks({ animated = false } = {}) {
 function renderExtraTasks({ animated = false } = {}) {
   if (activeMode !== "today") {
     extraSection.hidden = true;
+    todayPanel.classList.add("side-list-hidden");
     extraList.textContent = "";
     return;
   }
@@ -1425,6 +1426,7 @@ function renderExtraTasks({ animated = false } = {}) {
     const entries = openEntries().filter((entry) => entry.extra);
     const items = [];
     extraSection.hidden = entries.length === 0;
+    todayPanel.classList.toggle("side-list-hidden", entries.length === 0);
     extraStatus.textContent = `${entries.length} extra`;
     if (entries.length === 0) {
       extraList.textContent = "";
@@ -1450,6 +1452,7 @@ function renderExtraTasks({ animated = false } = {}) {
   }
   const items = [];
   extraSection.hidden = tasks.length === 0;
+  todayPanel.classList.toggle("side-list-hidden", tasks.length === 0);
   extraStatus.textContent = `${tasks.length} extra`;
   if (tasks.length === 0) {
     extraList.textContent = "";
@@ -2734,7 +2737,7 @@ async function clearTaskWait(entry) {
   }
 }
 
-async function loadTasks() {
+async function loadTasks({ animated = true } = {}) {
   refresh.disabled = true;
   showStatus("Loading tasks...");
   try {
@@ -2749,7 +2752,7 @@ async function loadTasks() {
       saveSession();
     }
     showStatus("");
-    renderApp({ animated: true, focusKey: session.scanCursorKey });
+    renderApp({ animated, focusKey: session.scanCursorKey });
   } catch (error) {
     showStatus(error.message);
     renderApp();
@@ -3031,10 +3034,9 @@ async function initApp() {
   applyColorscheme(storedColorscheme());
   refreshAddWaitMin();
   refreshAddMode();
-  input.focus();
   renderApp();
-  await loadWorkflowSession();
-  await loadTasks();
+  await loadWorkflowSession({ animated: false });
+  await loadTasks({ animated: false });
 }
 
 void initApp();

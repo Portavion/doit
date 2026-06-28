@@ -15,23 +15,14 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260617-wait">
+    <link rel="stylesheet" href="/style.css?v=20260628-menu-font">
   </head>
   <body>
     <main class="shell">
       <header class="hero">
-        <div class="plane" aria-hidden="true">
-          <span></span>
-        </div>
-        <div>
-          <p class="eyebrow">Closed-list deck</p>
+        <div class="brand">
           <h1>Doit</h1>
-        </div>
-        <div class="champ" aria-hidden="true">
-          <span class="head"></span>
-          <span class="body"></span>
-          <span class="shoe left"></span>
-          <span class="shoe right"></span>
+          <p class="eyebrow">Today / capture / finish</p>
         </div>
         <div class="settings">
           <button id="settings-toggle" class="icon-button" type="button" aria-label="Open settings" aria-controls="settings-menu" aria-expanded="false">
@@ -53,9 +44,9 @@
       </header>
 
       <form id="task-form" class="add-form">
-        <label for="description">Capture for tomorrow</label>
+        <label for="description">New task</label>
         <div class="add-row">
-          <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Add a tiny mission">
+          <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Capture for tomorrow">
           <button id="submit" type="submit">Add</button>
         </div>
         <div class="command-strip">
@@ -81,7 +72,7 @@
       <section class="toolbar">
         <button id="refresh" type="button">Refresh</button>
         <button id="session" type="button">Start</button>
-        <button id="lucky" type="button">Feeling lucky</button>
+        <button id="lucky" type="button">Lucky</button>
         <p id="status" hidden></p>
       </section>
 
@@ -99,7 +90,7 @@
       <div id="today-panel" class="workdeck">
         <div class="today-column">
           <section class="list-header">
-            <h2>To-do list</h2>
+            <h2>Today</h2>
             <p id="list-caption">Ready to start</p>
           </section>
           <ul id="tasks" class="tasks"></ul>
@@ -107,7 +98,7 @@
 
         <aside class="extra-section" aria-labelledby="extra-heading">
           <section class="list-header extra-header">
-            <h2 id="extra-heading">Extra today</h2>
+            <h2 id="extra-heading">Side list</h2>
             <p id="extra-status">0 extra</p>
           </section>
           <ul id="extra-tasks" class="tasks extra-tasks"></ul>
@@ -138,6 +129,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=20260628-lucky"></script>
+    <script src="/app.js?v=20260628-stable-load"></script>
   </body>
 </html>
