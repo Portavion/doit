@@ -94,7 +94,7 @@ Doit also passes non-interactive Taskwarrior overrides for confirmation prompts 
 
 - `GET /health` returns `OK`
 - `GET /api/tasks` optionally runs `task sync`, exports pending non-waiting tasks, and returns JSON
-- `POST /api/tasks` accepts `{ "description": "...", "uri": "https://example.com", "project": "Work.Client", "due": "today", "wait": "2026-06-18" }`, adds a task due tomorrow or extra today, optionally syncs, and returns the updated task list
+- `POST /api/tasks` accepts `{ "description": "...", "uri": "https://example.com", "project": "Work.Client", "due": "today", "wait": "2026-06-18" }`, adds a task due tomorrow, extra today, or on its wait date, optionally syncs, and returns the updated task list
 - `POST /api/backlog/declare` accepts `{ "ids": [12, 13] }`, tags selected tasks with `+backlog`, optionally syncs, and returns the updated task list
 - `POST /api/tasks/:id/release` removes `+backlog`, moves the task to tomorrow, optionally syncs, and returns the updated task list
 - `POST /api/tasks/:id/complete` marks a task done, optionally syncs, and returns the updated task list
@@ -112,7 +112,7 @@ Do not expose Doit directly to the public internet unless an authentication laye
 - Single-user assumptions throughout the backend
 - No built-in authentication or authorization
 - Shells out to the local `task` binary for all task operations
-- Adds new tasks to `project:Inbox` unless overridden, defaulting to `due:tomorrow`
+- Adds new tasks to `project:Inbox` unless overridden, defaulting to `due:tomorrow`; waiting tasks are due on their wait date
 - Uses a simple process-local lock file for serialized task operations
 
 ## Roadmap

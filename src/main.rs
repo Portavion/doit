@@ -377,17 +377,13 @@ async fn add_task(
         .map(str::trim)
         .filter(|uri| !uri.is_empty());
     let project = normalize_project(payload.project.as_deref())?;
-    let due = match payload.due.as_deref().map(str::trim) {
-        None | Some("") | Some("tomorrow") => "tomorrow",
-        Some("today") => "today",
-        Some(_) => return Err(AppError::bad_request("due must be today or tomorrow")),
-    };
     let wait = payload
         .wait
         .as_deref()
         .map(normalize_optional_wait_value)
         .transpose()?
         .flatten();
+    let due = normalize_due_value(payload.due.as_deref(), wait.as_deref())?;
 
     with_task_lock(&state.task, || async {
         let mut args = vec![
@@ -395,7 +391,7 @@ async fn add_task(
             OsString::from(format!("project:{project}")),
             OsString::from(format!("due:{due}")),
         ];
-        if due == "today" {
+        if wait.is_none() && due == "today" {
             args.push(OsString::from("+extra"));
         }
         if let Some(uri) = uri {
@@ -413,6 +409,19 @@ async fn add_task(
         Ok(Json(refresh_tasks(&state.task).await?))
     })
     .await
+}
+
+fn normalize_due_value(due: Option<&str>, wait: Option<&str>) -> Result<String, AppError> {
+    let due = match due.map(str::trim) {
+        None | Some("") | Some("tomorrow") => "tomorrow",
+        Some("today") => "today",
+        Some(_) => return Err(AppError::bad_request("due must be today or tomorrow")),
+    };
+    if let Some(wait) = wait {
+        return Ok(wait.to_string());
+    }
+
+    Ok(due.to_string())
 }
 
 fn normalize_project(project: Option<&str>) -> Result<String, AppError> {
@@ -1271,6 +1280,32 @@ not-a-uuid
         assert!(normalize_project(Some("Work..Client")).is_err());
         assert!(normalize_project(Some("Work Client")).is_err());
         assert!(normalize_project(Some("project:Work")).is_err());
+    }
+
+    #[test]
+    fn normalize_due_value_defaults_to_tomorrow() {
+        assert_eq!(normalize_due_value(None, None).expect("due"), "tomorrow");
+        assert_eq!(
+            normalize_due_value(Some("  "), None).expect("due"),
+            "tomorrow"
+        );
+    }
+
+    #[test]
+    fn normalize_due_value_uses_wait_date_when_present() {
+        assert_eq!(
+            normalize_due_value(None, Some("2026-06-28")).expect("due"),
+            "2026-06-28"
+        );
+        assert_eq!(
+            normalize_due_value(Some("today"), Some("+1week")).expect("due"),
+            "+1week"
+        );
+    }
+
+    #[test]
+    fn normalize_due_value_rejects_invalid_due_without_wait() {
+        assert!(normalize_due_value(Some("friday"), None).is_err());
     }
 
     #[test]

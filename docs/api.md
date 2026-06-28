@@ -84,7 +84,7 @@ Request:
 }
 ```
 
-`uri`, `project`, and `wait` are optional. `project` defaults to `Inbox` and accepts dotted Taskwarrior project names such as `Work.Client`. `due` is optional and accepts `today` or `tomorrow`. `wait` is trimmed, limited to 500 characters, and cannot contain whitespace. `description` is trimmed, required, and limited to 500 characters.
+`uri`, `project`, and `wait` are optional. `project` defaults to `Inbox` and accepts dotted Taskwarrior project names such as `Work.Client`. `due` is optional and accepts `today` or `tomorrow`. `wait` is trimmed, limited to 500 characters, and cannot contain whitespace. When `wait` is provided, Doit sets the task due date to the same value. `description` is trimmed, required, and limited to 500 characters.
 
 Doit adds tasks with these defaults:
 
@@ -92,7 +92,7 @@ Doit adds tasks with these defaults:
 task add project:Inbox due:tomorrow -- "Book train tickets"
 ```
 
-If `project` is provided, Doit passes `project:<value>` instead of `project:Inbox`. If `due` is `today`, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior. If `wait` is provided, Doit passes `wait:<value>` when creating the task.
+If `project` is provided, Doit passes `project:<value>` instead of `project:Inbox`. If `due` is `today` and `wait` is not provided, Doit adds `due:today +extra`. If `uri` is provided, Doit also passes `uri:<value>` to Taskwarrior. If `wait` is provided, Doit passes `wait:<value>` and `due:<value>` when creating the task.
 
 Response: the updated task list.
 

@@ -2308,7 +2308,7 @@ function dateAfterDays(days) {
 }
 
 function refreshAddWaitMin() {
-  waitInput.min = inputDateValue(dateAfterDays(1));
+  waitInput.min = inputDateValue(dateAfterDays(0));
 }
 
 function isMarked(key) {
