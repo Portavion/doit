@@ -55,7 +55,8 @@ const openSplitKeys = new Set();
 const openMoreKeys = new Set();
 const openDeleteKeys = new Set();
 
-const colorschemes = ["default", "everforest", "gruvbox", "rose-pine"];
+const colorschemes = ["default", "dark"];
+const legacyDarkColorschemes = ["everforest", "gruvbox", "rose-pine"];
 
 const spriteVariants = {
   nodue: ["nodue-1", "nodue-2", "nodue-3", "nodue-4", "nodue-5"],
@@ -119,6 +120,9 @@ function storedColorscheme() {
     if (colorschemes.includes(value)) {
       return value;
     }
+    if (legacyDarkColorschemes.includes(value)) {
+      return "dark";
+    }
   } catch {
     showStatus("Browser storage is unavailable");
   }
@@ -126,9 +130,19 @@ function storedColorscheme() {
 }
 
 function applyColorscheme(colorscheme) {
-  const selected = colorschemes.includes(colorscheme) ? colorscheme : "default";
+  let selected = colorscheme;
+  if (legacyDarkColorschemes.includes(selected)) {
+    selected = "dark";
+  }
+  if (!colorschemes.includes(selected)) {
+    selected = "default";
+  }
   document.documentElement.classList.remove(
-    ...colorschemes.map((name) => `colorscheme-${name}`),
+    "colorscheme-default",
+    "colorscheme-dark",
+    "colorscheme-everforest",
+    "colorscheme-gruvbox",
+    "colorscheme-rose-pine",
   );
   if (selected !== "default") {
     document.documentElement.classList.add(`colorscheme-${selected}`);
@@ -139,9 +153,13 @@ function applyColorscheme(colorscheme) {
 }
 
 function saveColorscheme(colorscheme) {
-  applyColorscheme(colorscheme);
+  let selected = colorscheme;
+  if (!colorschemes.includes(selected)) {
+    selected = "default";
+  }
+  applyColorscheme(selected);
   try {
-    localStorage.setItem(colorschemeStorageKey, colorscheme);
+    localStorage.setItem(colorschemeStorageKey, selected);
   } catch {
     showStatus("Browser storage is unavailable");
   }

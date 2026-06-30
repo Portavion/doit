@@ -10,12 +10,12 @@
     <script>
       try {
         const colorscheme = localStorage.getItem("doit.colorscheme.v1");
-        if (["everforest", "gruvbox", "rose-pine"].includes(colorscheme)) {
-          document.documentElement.classList.add(`colorscheme-${colorscheme}`);
+        if (["dark", "everforest", "gruvbox", "rose-pine"].includes(colorscheme)) {
+          document.documentElement.classList.add("colorscheme-dark");
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260630-extra-star-after">
+    <link rel="stylesheet" href="/style.css?v=20260630-dark-theme">
   </head>
   <body>
     <main class="shell">
@@ -34,11 +34,9 @@
           <div id="settings-menu" class="settings-menu" hidden>
             <button id="declare-backlog" class="settings-action" type="button">Declare backlog</button>
             <button id="reset-cache" class="settings-action" type="button">Reset cache</button>
-            <p>Colourscheme</p>
-            <label><input type="radio" name="colorscheme" value="default"> Default</label>
-            <label><input type="radio" name="colorscheme" value="everforest"> Everforest</label>
-            <label><input type="radio" name="colorscheme" value="gruvbox"> Gruvbox</label>
-            <label><input type="radio" name="colorscheme" value="rose-pine"> Rose Pine</label>
+            <p>Theme</p>
+            <label><input type="radio" name="colorscheme" value="default"> Light</label>
+            <label><input type="radio" name="colorscheme" value="dark"> Dark</label>
           </div>
         </div>
       </header>
@@ -121,6 +119,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=20260630-today-extras"></script>
+    <script src="/app.js?v=20260630-dark-theme"></script>
   </body>
 </html>
