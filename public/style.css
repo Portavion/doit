@@ -434,14 +434,7 @@ label {
 }
 
 .workdeck {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.75fr);
-  gap: 20px;
   margin-top: 14px;
-}
-
-.workdeck.side-list-hidden {
-  grid-template-columns: 1fr;
 }
 
 .backlog-panel,
@@ -450,7 +443,6 @@ label {
 }
 
 .today-column,
-.extra-section,
 .backlog-panel,
 .future-panel,
 .waiting-section {
@@ -473,7 +465,6 @@ label {
   font-size: 12px;
 }
 
-.extra-header h2,
 .waiting-header h2 {
   font-size: 13px;
 }
@@ -616,14 +607,6 @@ label {
   --task-bg: var(--tomorrow-bg);
 }
 
-.extra-tasks li.task-item {
-  grid-template-columns: 16px minmax(0, 1fr) 30px;
-  gap: 7px;
-  min-height: 38px;
-  padding: 6px 8px;
-  font-size: 13px;
-}
-
 .waiting-tasks li.waiting-task {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 9px;
@@ -713,6 +696,13 @@ label {
   font-weight: 400;
 }
 
+.extra-task .task-title::after {
+  content: "*";
+  margin-left: 4px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .crossed-task .task-title {
   text-decoration: line-through;
   text-decoration-color: var(--muted);
@@ -750,12 +740,6 @@ label {
   padding: 0;
   color: color-mix(in srgb, var(--muted) 42%, var(--paper));
   line-height: 1;
-}
-
-.extra-tasks .complete-button {
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
 }
 
 .waiting-controls {

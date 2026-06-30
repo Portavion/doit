@@ -17,7 +17,6 @@ const settingsToggle = document.querySelector("#settings-toggle");
 const settingsMenu = document.querySelector("#settings-menu");
 const statusText = document.querySelector("#status");
 const listCaption = document.querySelector("#list-caption");
-const extraStatus = document.querySelector("#extra-status");
 const backlogStatus = document.querySelector("#backlog-status");
 const tomorrowStatus = document.querySelector("#tomorrow-status");
 const waitingStatus = document.querySelector("#waiting-status");
@@ -29,8 +28,6 @@ const todayPanel = document.querySelector("#today-panel");
 const backlogPanel = document.querySelector("#backlog-panel");
 const futurePanel = document.querySelector("#future-panel");
 const list = document.querySelector("#tasks");
-const extraSection = document.querySelector(".extra-section");
-const extraList = document.querySelector("#extra-tasks");
 const backlogList = document.querySelector("#backlog-tasks");
 const tomorrowList = document.querySelector("#tomorrow-tasks");
 const waitingList = document.querySelector("#waiting-tasks");
@@ -1213,7 +1210,6 @@ function renderApp({ animated = false, focusKey = "" } = {}) {
   renderModeSwitch();
   renderProjectFilter();
   renderSessionButton();
-  renderExtraTasks({ animated });
   renderTasks({ animated });
   renderBacklogTasks({ animated });
   renderTomorrowTasks({ animated });
@@ -1359,17 +1355,15 @@ function renderTasks({ animated = false } = {}) {
 
   compactSession();
   if (scanActive()) {
+    const entries = extraLast(openEntries());
     const items = [];
-    let taskCount = 0;
-    session.entries.forEach((entry, index) => {
-      if (entry.extra || isCrossed(entry.key)) {
-        return;
-      }
-      taskCount += 1;
+    entries.forEach((entry, index) => {
       pushTaskItem(items, entry, { index, sessionTask: true });
     });
-    listCaption.textContent = `${taskCount} task${taskCount === 1 ? "" : "s"}`;
-    if (taskCount === 0) {
+    listCaption.textContent = `${entries.length} task${
+      entries.length === 1 ? "" : "s"
+    }`;
+    if (entries.length === 0) {
       items.push(emptyListItem("today-empty", "No open session tasks"));
     }
     renderKeyedList(list, items, animated);
@@ -1381,7 +1375,7 @@ function renderTasks({ animated = false } = {}) {
     return;
   }
 
-  const entries = openEntries().filter((entry) => !entry.extra);
+  const entries = extraLast(openEntries());
   const items = [];
   listCaption.textContent = `${entries.length} task${
     entries.length === 1 ? "" : "s"
@@ -1398,7 +1392,7 @@ function renderTasks({ animated = false } = {}) {
 }
 
 function renderReadyTasks({ animated = false } = {}) {
-  const tasks = visibleTasks(regularTodayWorkTasks(latestTasks));
+  const tasks = visibleTasks(todayWorkTasks(latestTasks));
   const items = [];
   listCaption.textContent = `${tasks.length} task${
     tasks.length === 1 ? "" : "s"
@@ -1412,59 +1406,6 @@ function renderReadyTasks({ animated = false } = {}) {
     pushTaskItem(items, entryFromTask(task), { index, preview: true });
   });
   renderKeyedList(list, items, animated);
-}
-
-function renderExtraTasks({ animated = false } = {}) {
-  if (activeMode !== "today") {
-    extraSection.hidden = true;
-    todayPanel.classList.add("side-list-hidden");
-    extraList.textContent = "";
-    return;
-  }
-
-  if (hasSession()) {
-    const entries = openEntries().filter((entry) => entry.extra);
-    const items = [];
-    extraSection.hidden = entries.length === 0;
-    todayPanel.classList.toggle("side-list-hidden", entries.length === 0);
-    extraStatus.textContent = `${entries.length} extra`;
-    if (entries.length === 0) {
-      extraList.textContent = "";
-      return;
-    }
-    entries.forEach((entry, index) => {
-      pushTaskItem(items, entry, {
-        extra: true,
-        index,
-        sessionTask: true,
-      });
-    });
-    renderKeyedList(extraList, items, animated);
-    return;
-  }
-
-  const sessionTaskKeys = new Set(session.entries.map((entry) => entry.taskKey));
-  const tasks = [];
-  for (const task of visibleTasks(extraTodayTasks(latestTasks))) {
-    if (!sessionTaskKeys.has(taskKey(task))) {
-      tasks.push(task);
-    }
-  }
-  const items = [];
-  extraSection.hidden = tasks.length === 0;
-  todayPanel.classList.toggle("side-list-hidden", tasks.length === 0);
-  extraStatus.textContent = `${tasks.length} extra`;
-  if (tasks.length === 0) {
-    extraList.textContent = "";
-    return;
-  }
-  tasks.forEach((task, index) => {
-    pushTaskItem(items, entryFromTask(task), {
-      extra: true,
-      index,
-    });
-  });
-  renderKeyedList(extraList, items, animated);
 }
 
 function renderBacklogTasks({ animated = false } = {}) {
@@ -1568,13 +1509,12 @@ function renderRunTasks({ animated = false } = {}) {
   const runKeySet = new Set(runKeys);
   const items = [];
   let hiddenCount = 0;
-  const regularRunKeys = runKeys.filter((key) => !entryByKey(key)?.extra);
-  listCaption.textContent = `${regularRunKeys.length} task${
-    regularRunKeys.length === 1 ? "" : "s"
+  listCaption.textContent = `${runKeys.length} task${
+    runKeys.length === 1 ? "" : "s"
   }`;
 
-  session.entries.forEach((entry, index) => {
-    if (entry.extra || isCrossed(entry.key)) {
+  extraLast(session.entries).forEach((entry, index) => {
+    if (isCrossed(entry.key)) {
       return;
     }
 
@@ -3023,8 +2963,6 @@ document.addEventListener("click", handleDocumentClick);
 document.addEventListener("keydown", handleDocumentKeydown);
 list.addEventListener("click", handleTaskClick);
 list.addEventListener("pointerdown", handleTaskPointerdown);
-extraList.addEventListener("click", handleTaskClick);
-extraList.addEventListener("pointerdown", handleTaskPointerdown);
 backlogList.addEventListener("click", handleTaskClick);
 backlogList.addEventListener("pointerdown", handleTaskPointerdown);
 tomorrowList.addEventListener("click", handleTaskClick);
