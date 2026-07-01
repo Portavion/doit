@@ -510,6 +510,26 @@ function taskDateKey(value) {
   );
 }
 
+function dayNumberFromKey(day) {
+  if (!/^\d{8}$/.test(day)) {
+    return null;
+  }
+
+  const year = Number(day.slice(0, 4));
+  const month = Number(day.slice(4, 6));
+  const date = Number(day.slice(6, 8));
+  return Math.floor(Date.UTC(year, month - 1, date) / 86_400_000);
+}
+
+function procrastinationDays(dueDay, currentDay) {
+  const dueNumber = dayNumberFromKey(dueDay);
+  const currentNumber = dayNumberFromKey(currentDay);
+  if (dueNumber === null || currentNumber === null || dueNumber >= currentNumber) {
+    return 0;
+  }
+  return currentNumber - dueNumber;
+}
+
 function taskDescription(task) {
   if (typeof task === "string") {
     return task.trim();
@@ -1853,6 +1873,11 @@ function patchTaskItem(item, entry, options = {}) {
   const candidate = scanCandidateEntry();
   const isCandidate = inSession && candidate?.key === entry.key;
   const sessionActive = scanActive() || runActive();
+  const showTitleMarkers = activeMode === "today" || activeMode === "backlog";
+  let overdueDays = 0;
+  if (showTitleMarkers) {
+    overdueDays = procrastinationDays(dueDay, currentDay);
+  }
   const canQuickComplete =
     entry.id !== null &&
     (!inSession || isCurrent || !sessionActive);
@@ -1871,6 +1896,9 @@ function patchTaskItem(item, entry, options = {}) {
     spriteClassName,
     canQuickComplete,
     openAnnotationKeys.has(entry.taskKey),
+    dueDay,
+    entry.extra,
+    overdueDays,
     entry.backlog,
   ]);
 
@@ -1950,6 +1978,20 @@ function patchTaskItem(item, entry, options = {}) {
     title.append(project, ` ${description}`);
   } else {
     title.textContent = description;
+  }
+  if (showTitleMarkers && entry.extra) {
+    const extra = document.createElement("span");
+    extra.className = "task-title-marker extra-marker";
+    extra.setAttribute("aria-label", "Extra");
+    extra.textContent = "*";
+    title.append(extra);
+  }
+  if (overdueDays > 0) {
+    const flame = document.createElement("span");
+    flame.className = "task-title-marker procrastination-marker";
+    flame.setAttribute("aria-label", `${overdueDays} days overdue`);
+    flame.textContent = `🔥 ${overdueDays}`;
+    title.append(flame);
   }
   content.append(title);
 

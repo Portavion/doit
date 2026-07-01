@@ -705,11 +705,19 @@ label {
   font-weight: 400;
 }
 
-.extra-task .task-title::after {
-  content: "*";
+.task-title-marker {
+  display: inline-block;
   margin-left: 4px;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.extra-marker {
   font-weight: 700;
+}
+
+.procrastination-marker {
+  font-size: 12px;
 }
 
 .crossed-task .task-title {
