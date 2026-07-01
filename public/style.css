@@ -160,7 +160,7 @@ select:focus-visible,
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
-  min-height: 54px;
+  min-height: 40px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -269,8 +269,8 @@ h2 {
 .add-form {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
-  padding: 10px 0 12px;
+  margin-top: 6px;
+  padding: 6px 0 12px;
   border-bottom: 1px solid var(--line);
 }
 
