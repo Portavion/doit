@@ -293,7 +293,7 @@ label {
 
 .add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px;
+  grid-template-columns: minmax(0, 1fr) auto 52px;
   gap: 6px;
 }
 
@@ -323,13 +323,6 @@ label {
   color: var(--muted);
 }
 
-.command-strip {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  justify-content: center;
-}
-
 .command-button {
   min-width: 36px;
   min-height: 28px;
@@ -346,8 +339,18 @@ label {
 
 .extra-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: min(100%, 440px);
+  margin: 2px auto 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--paper) 72%, var(--page));
+}
+
+.extra-fields[hidden] {
+  display: none;
 }
 
 .extra-field {
@@ -357,15 +360,24 @@ label {
 }
 
 .wait-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   border: 0;
+  column-gap: 8px;
   padding: 0;
 }
 
 .wait-field legend {
+  grid-column: 1 / -1;
   padding: 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
+}
+
+.wait-field .command-button {
+  min-height: 32px;
+  padding-inline: 12px;
 }
 
 .extra-input {

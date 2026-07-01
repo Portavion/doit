@@ -2841,7 +2841,7 @@ function showExtraFields() {
   extraFields.hidden = false;
   extraFieldsToggle.classList.add("active");
   extraFieldsToggle.setAttribute("aria-expanded", "true");
-  uriInput.focus();
+  projectInput.focus();
 }
 
 function hideExtraFields() {

@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260701-quiet-add-button">
+    <link rel="stylesheet" href="/style.css?v=20260701-extra-panel">
   </head>
   <body>
     <main class="shell">
@@ -44,24 +44,22 @@
         <label class="visually-hidden" for="description">New task</label>
         <div class="add-row">
           <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Capture for tomorrow">
+          <button id="extra-fields-toggle" class="command-button" type="button" aria-controls="extra-fields" aria-expanded="false">...</button>
           <button id="submit" type="submit">Add</button>
         </div>
-        <div class="command-strip">
-          <button id="extra-fields-toggle" class="command-button" type="button" aria-controls="extra-fields" aria-expanded="false">...</button>
-          <button id="extra-toggle" class="command-button" type="button" aria-pressed="false">Extra</button>
-        </div>
         <div id="extra-fields" class="extra-fields" hidden>
-          <label class="extra-field" for="uri-field">
-            URI
-            <input id="uri-field" class="extra-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com">
-          </label>
           <label class="extra-field" for="project-field">
             Project
             <input id="project-field" class="extra-input" name="project" autocomplete="off" placeholder="Inbox">
           </label>
+          <label class="extra-field" for="uri-field">
+            URI
+            <input id="uri-field" class="extra-input" name="uri" inputmode="url" autocomplete="off" placeholder="https://example.com">
+          </label>
           <fieldset class="extra-field wait-field">
             <legend>Wait</legend>
             <input id="wait-field" class="extra-input" name="wait" type="date">
+            <button id="extra-toggle" class="command-button" type="button" aria-pressed="false">Extra</button>
           </fieldset>
         </div>
       </form>
@@ -118,6 +116,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=20260701-procrastination-counter"></script>
+    <script src="/app.js?v=20260701-extra-panel"></script>
   </body>
 </html>
