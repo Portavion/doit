@@ -304,7 +304,12 @@ async fn asset_app_js() -> Result<Response, AppError> {
 }
 
 async fn asset_style_css() -> Result<Response, AppError> {
-    static_file("style.css", "text/css; charset=utf-8", FRONTEND_CACHE_CONTROL).await
+    static_file(
+        "style.css",
+        "text/css; charset=utf-8",
+        FRONTEND_CACHE_CONTROL,
+    )
+    .await
 }
 
 async fn asset_favicon_ico() -> Result<Response, AppError> {
