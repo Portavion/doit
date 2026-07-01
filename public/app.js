@@ -2783,8 +2783,8 @@ async function addTask(event) {
 
 function refreshAddMode() {
   formLabel.textContent = addingToday
-    ? "Capture extra for today"
-    : "Capture for tomorrow";
+    ? "New extra task"
+    : "New task";
   extraToggle.classList.toggle("active", addingToday);
   extraToggle.setAttribute("aria-pressed", String(addingToday));
 }

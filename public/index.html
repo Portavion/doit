@@ -15,7 +15,7 @@
         }
       } catch {}
     </script>
-    <link rel="stylesheet" href="/style.css?v=20260701-tight-header">
+    <link rel="stylesheet" href="/style.css?v=20260701-hide-add-label">
   </head>
   <body>
     <main class="shell">
@@ -41,7 +41,7 @@
       </header>
 
       <form id="task-form" class="add-form">
-        <label for="description">New task</label>
+        <label class="visually-hidden" for="description">New task</label>
         <div class="add-row">
           <input id="description" name="description" maxlength="500" autocomplete="off" placeholder="Capture for tomorrow">
           <button id="submit" type="submit">Add</button>
@@ -118,6 +118,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=20260630-dark-theme"></script>
+    <script src="/app.js?v=20260701-hide-add-label"></script>
   </body>
 </html>

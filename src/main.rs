@@ -28,6 +28,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const MAX_DESCRIPTION_LEN: usize = 500;
 const INDEX_CACHE_CONTROL: &str = "no-cache";
+const FRONTEND_CACHE_CONTROL: &str = "no-cache";
 const ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
 #[derive(Clone)]
@@ -297,13 +298,13 @@ async fn asset_app_js() -> Result<Response, AppError> {
     static_file(
         "app.js",
         "text/javascript; charset=utf-8",
-        ASSET_CACHE_CONTROL,
+        FRONTEND_CACHE_CONTROL,
     )
     .await
 }
 
 async fn asset_style_css() -> Result<Response, AppError> {
-    static_file("style.css", "text/css; charset=utf-8", ASSET_CACHE_CONTROL).await
+    static_file("style.css", "text/css; charset=utf-8", FRONTEND_CACHE_CONTROL).await
 }
 
 async fn asset_favicon_ico() -> Result<Response, AppError> {
