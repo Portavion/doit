@@ -293,16 +293,22 @@ label {
 
 .add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 70px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 6px;
 }
 
-#submit,
 .primary-action,
 #session.session-start {
   --button-bg: var(--primary-button-bg, var(--accent));
   --button-text: var(--primary-button-text, #fffdf7);
   border-color: transparent;
+}
+
+#submit {
+  min-height: 30px;
+  padding: 5px 9px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 #session.session-stop,
@@ -912,7 +918,6 @@ label {
     transform: translateY(-1px);
   }
 
-  #submit:not(:disabled):hover,
   #session.session-start:not(:disabled):hover,
   .primary-action:not(:disabled):hover {
     background: color-mix(in srgb, var(--button-bg) 88%, black);
